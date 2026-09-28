@@ -7,7 +7,6 @@
     <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
     <link rel="icon" href="asset/img/kaiadmin/favicon.ico" type="image/x-icon" />
 
-    <!-- Fonts and icons -->
     <script src="asset/js/plugin/webfont/webfont.min.js"></script>
     <script>
         WebFont.load({
@@ -387,13 +386,13 @@
                                     </div>
                                     <span class="profile-username">
                                         <span class="op-7">Hi,</span>
-                                        <span class="fw-bold">Hizrian</span>
+                                        <span class="fw-bold">Admin</span>
                                     </span>
                                 </a>
                                 <ul class="dropdown-menu dropdown-user animated fadeIn">
                                     <div class="dropdown-user-scroll scrollbar-outer">
                                         <li>
-                                            <div class="user-box">
+                                          <!--   <div class="user-box">
                                                 <div class="avatar-lg">
                                                     <img src="asset/img/profile.jpg" alt="image profile"
                                                         class="avatar-img rounded" />
@@ -404,18 +403,22 @@
                                                     <a href="profile.html" class="btn btn-xs btn-secondary btn-sm">View
                                                         Profile</a>
                                                 </div>
-                                            </div>
+                                            </div> -->
                                         </li>
                                         <li>
                                             <div class="dropdown-divider"></div>
-                                            <a class="dropdown-item" href="#">My Profile</a>
+                                            <!-- <a class="dropdown-item" href="#">My Profile</a>
                                             <a class="dropdown-item" href="#">My Balance</a>
                                             <a class="dropdown-item" href="#">Inbox</a>
                                             <div class="dropdown-divider"></div>
                                             <a class="dropdown-item" href="#">Account Setting</a>
-                                            <div class="dropdown-divider"></div>
-                                            <a class="dropdown-item" href="#">Logout</a>
-                                        </li>
+                                            <div class="dropdown-divider"></div> -->
+<form method="POST" action="{{ route('admin.logout') }}">
+    @csrf
+    <button type="submit" class="dropdown-item border-0 bg-transparent w-100 text-start">
+        Logout
+    </button>
+</form>                                        </li>
                                     </div>
                                 </ul>
                             </li>

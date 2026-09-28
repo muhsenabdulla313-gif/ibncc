@@ -15,7 +15,7 @@ class User extends Authenticatable
  
     protected $fillable = [
         'role_id', 'name', 'email', 'password',
-        'phone', 'phone_verified_at', 'parish', 'diocese', 'rite',
+        'phone', 'phone_verified_at','email_verified_at', 'parish', 'diocese', 'rite',
         'otp_code', 'otp_expires_at',
     ];
  
@@ -24,6 +24,7 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'otp_expires_at' => 'datetime',
             'password' => 'hashed',

@@ -29,25 +29,9 @@ body { margin: 0; }
     z-index: 0;
     animation: adlgnFloat 12s ease-in-out infinite;
 }
-.adlgn-blob.b1 {
-    width: 420px; height: 420px;
-    background: #6a11cb;
-    top: -120px; left: -100px;
-    animation-delay: 0s;
-}
-.adlgn-blob.b2 {
-    width: 380px; height: 380px;
-    background: #2575fc;
-    bottom: -140px; right: -100px;
-    animation-delay: 2s;
-}
-.adlgn-blob.b3 {
-    width: 260px; height: 260px;
-    background: #ff6a88;
-    top: 40%; left: 60%;
-    animation-delay: 4s;
-    opacity: 0.35;
-}
+.adlgn-blob.b1 { width: 420px; height: 420px; background: #6a11cb; top: -120px; left: -100px; }
+.adlgn-blob.b2 { width: 380px; height: 380px; background: #2575fc; bottom: -140px; right: -100px; animation-delay: 2s; }
+.adlgn-blob.b3 { width: 260px; height: 260px; background: #ff6a88; top: 40%; left: 60%; animation-delay: 4s; opacity: 0.35; }
 
 @keyframes adlgnFloat {
     0%, 100% { transform: translate(0, 0) scale(1); }
@@ -103,10 +87,7 @@ body { margin: 0; }
     transform: translateY(24px);
     animation: adlgnCardIn 0.7s ease forwards 0.15s;
 }
-
-@keyframes adlgnCardIn {
-    to { opacity: 1; transform: translateY(0); }
-}
+@keyframes adlgnCardIn { to { opacity: 1; transform: translateY(0); } }
 
 .adlgn-brand {
     display: flex;
@@ -116,13 +97,7 @@ body { margin: 0; }
     margin-bottom: 28px;
 }
 
-.adlgn-brand-mark-wrap {
-    position: relative;
-    width: 52px;
-    height: 52px;
-    margin-bottom: 14px;
-}
-
+.adlgn-brand-mark-wrap { position: relative; width: 52px; height: 52px; margin-bottom: 14px; }
 .adlgn-brand-mark-wrap::before {
     content: '';
     position: absolute;
@@ -133,10 +108,7 @@ body { margin: 0; }
     border-right-color: #2575fc;
     animation: adlgnSpin 2.5s linear infinite;
 }
-
-@keyframes adlgnSpin {
-    to { transform: rotate(360deg); }
-}
+@keyframes adlgnSpin { to { transform: rotate(360deg); } }
 
 .adlgn-brand-mark {
     width: 52px;
@@ -151,36 +123,20 @@ body { margin: 0; }
     box-shadow: 0 8px 22px rgba(37,117,252,0.4);
     animation: adlgnGradientShift 4s ease infinite, adlgnPulse 3s ease-in-out infinite;
 }
-
-.adlgn-brand-mark img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 14px;
-}
+.adlgn-brand-mark img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
 
 @keyframes adlgnGradientShift {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
-
 @keyframes adlgnPulse {
     0%, 100% { box-shadow: 0 8px 22px rgba(37,117,252,0.4); }
     50% { box-shadow: 0 8px 30px rgba(106,17,203,0.6); }
 }
 
-.adlgn-brand h1 {
-    font-size: 20px;
-    font-weight: 700;
-    margin: 0 0 4px;
-}
-
-.adlgn-brand p {
-    font-size: 13px;
-    color: rgba(255,255,255,0.55);
-    margin: 0;
-}
+.adlgn-brand h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
+.adlgn-brand p { font-size: 13px; color: rgba(255,255,255,0.55); margin: 0; }
 
 .adlgn-field {
     margin-bottom: 18px;
@@ -188,12 +144,11 @@ body { margin: 0; }
     transform: translateY(12px);
     animation: adlgnFieldIn 0.5s ease forwards;
 }
-.adlgn-field:nth-child(1) { animation-delay: 0.35s; }
-.adlgn-field:nth-child(2) { animation-delay: 0.45s; }
+/* nth-of-type: the hidden @csrf input is the form's first child */
+.adlgn-field:nth-of-type(1) { animation-delay: 0.35s; }
+.adlgn-field:nth-of-type(2) { animation-delay: 0.45s; }
 
-@keyframes adlgnFieldIn {
-    to { opacity: 1; transform: translateY(0); }
-}
+@keyframes adlgnFieldIn { to { opacity: 1; transform: translateY(0); } }
 
 .adlgn-field label {
     display: block;
@@ -205,9 +160,7 @@ body { margin: 0; }
     letter-spacing: 0.6px;
 }
 
-.adlgn-input-group {
-    position: relative;
-}
+.adlgn-input-group { position: relative; }
 
 .adlgn-input-group .adlgn-icon {
     position: absolute;
@@ -231,7 +184,6 @@ body { margin: 0; }
     transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 .adlgn-input-group input::placeholder { color: rgba(255,255,255,0.3); }
-
 .adlgn-input-group input:focus {
     border-color: #7c3aed;
     background: rgba(255,255,255,0.09);
@@ -248,11 +200,7 @@ body { margin: 0; }
     transition: width 0.3s ease, left 0.3s ease;
     border-radius: 2px;
 }
-
-.adlgn-input-group input:focus ~ .adlgn-underline {
-    width: 100%;
-    left: 0;
-}
+.adlgn-input-group input:focus ~ .adlgn-underline { width: 100%; left: 0; }
 
 .adlgn-toggle-pass {
     position: absolute;
@@ -275,21 +223,12 @@ body { margin: 0; }
     opacity: 0;
     animation: adlgnFieldIn 0.5s ease forwards 0.5s;
 }
-
-.adlgn-remember {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: rgba(255,255,255,0.65);
-}
-
-.adlgn-forgot {
-    color: #a78bfa;
-    font-weight: 600;
-    text-decoration: none;
-}
+.adlgn-remember { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.65); }
+.adlgn-forgot { color: #a78bfa; font-weight: 600; text-decoration: none; }
 
 .adlgn-btn {
+    position: relative;
+    overflow: hidden;
     width: 100%;
     padding: 13px;
     border: none;
@@ -306,20 +245,9 @@ body { margin: 0; }
     opacity: 0;
     animation: adlgnFieldIn 0.5s ease forwards 0.6s, adlgnGradientShift 4s ease infinite;
 }
-
-.adlgn-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 30px rgba(37,117,252,0.5);
-}
-
-.adlgn-btn:active {
-    transform: translateY(0) scale(0.98);
-}
-
-.adlgn-btn {
-    position: relative;
-    overflow: hidden;
-}
+.adlgn-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(37,117,252,0.5); }
+.adlgn-btn:active { transform: translateY(0) scale(0.98); }
+.adlgn-btn:disabled { cursor: not-allowed; filter: saturate(0.5) brightness(0.85); pointer-events: none; }
 
 .adlgn-btn::after {
     content: '';
@@ -332,7 +260,6 @@ body { margin: 0; }
     transform: skewX(-20deg);
     animation: adlgnShine 3.2s ease-in-out infinite;
 }
-
 @keyframes adlgnShine {
     0% { left: -60%; }
     50% { left: 130%; }
@@ -349,19 +276,13 @@ body { margin: 0; }
     margin-bottom: 16px;
     animation: adlgnShake 0.4s ease;
 }
-
 @keyframes adlgnShake {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-6px); }
     75% { transform: translateX(6px); }
 }
 
-.adlgn-footer {
-    text-align: center;
-    margin-top: 22px;
-    font-size: 11.5px;
-    color: rgba(255,255,255,0.35);
-}
+.adlgn-footer { text-align: center; margin-top: 22px; font-size: 11.5px; color: rgba(255,255,255,0.35); }
 </style>
 </head>
 <body>
@@ -386,26 +307,31 @@ body { margin: 0; }
         </div>
 
         @if ($errors->any())
-            <div class="adlgn-error">{{ $errors->first() }}</div>
+            <div class="adlgn-error" id="adlgn-error">{{ $errors->first() }}</div>
         @endif
 
-        <form method="POST" action="{{ route('login') }}">
-            @csrf
+      <form method="POST" action="{{ route('admin.login.submit') }}" novalidate>
+    @csrf
 
             <div class="adlgn-field">
-                <label>Email address</label>
+                <label for="adlgn-email">Email address</label>
                 <div class="adlgn-input-group">
                     <span class="adlgn-icon">&#9993;</span>
-                    <input type="email" name="email" value="{{ old('email') }}" placeholder="admin@example.com" required autofocus>
+                    <input type="email" id="adlgn-email" name="email" value="{{ old('email') }}"
+                           placeholder="admin@example.com" maxlength="100"
+                           autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"
+                           required autofocus>
                     <span class="adlgn-underline"></span>
                 </div>
             </div>
 
             <div class="adlgn-field">
-                <label>Password</label>
+                <label for="adlgn-password">Password</label>
                 <div class="adlgn-input-group">
                     <span class="adlgn-icon">&#128274;</span>
-                    <input type="password" name="password" id="adlgn-password" placeholder="••••••••" required>
+                    <input type="password" id="adlgn-password" name="password"
+                           placeholder="••••••••" maxlength="64"
+                           autocomplete="current-password" required>
                     <span class="adlgn-toggle-pass" onclick="adlgnTogglePass()">Show</span>
                     <span class="adlgn-underline"></span>
                 </div>
@@ -415,7 +341,7 @@ body { margin: 0; }
                 <label class="adlgn-remember">
                     <input type="checkbox" name="remember"> Remember me
                 </label>
-                <a href="{{ route('password.request') }}" class="adlgn-forgot">Forgot password?</a>
+                <a href="#" class="adlgn-forgot">Forgot password?</a>
             </div>
 
             <button type="submit" class="adlgn-btn">Sign in</button>
@@ -428,10 +354,10 @@ body { margin: 0; }
 </div>
 
 <script>
+// floating particles
 (function () {
     const wrap = document.getElementById('adlgn-particles');
-    const count = 26;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < 26; i++) {
         const p = document.createElement('span');
         const size = 2 + Math.random() * 4;
         p.className = 'adlgn-particle';
@@ -445,17 +371,58 @@ body { margin: 0; }
     }
 })();
 
+// show / hide password
 function adlgnTogglePass() {
     const input = document.getElementById('adlgn-password');
     const btn = document.querySelector('.adlgn-toggle-pass');
-    if (input.type === 'password') {
-        input.type = 'text';
-        btn.textContent = 'Hide';
-    } else {
-        input.type = 'password';
-        btn.textContent = 'Show';
-    }
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.textContent = show ? 'Hide' : 'Show';
 }
+
+// form validation
+(function () {
+    const form  = document.getElementById('adlgn-form');
+    const email = document.getElementById('adlgn-email');
+    const pass  = document.getElementById('adlgn-password');
+    const btn   = form.querySelector('.adlgn-btn');
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    function showError(msg, field) {
+        let box = document.getElementById('adlgn-error');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'adlgn-error';
+            box.className = 'adlgn-error';
+            form.parentNode.insertBefore(box, form);
+        }
+        box.textContent = msg;
+        box.style.animation = 'none';   // restart the shake
+        void box.offsetWidth;
+        box.style.animation = '';
+        field.focus();
+    }
+
+    form.addEventListener('submit', function (e) {
+        const em = email.value.trim();
+        const pw = pass.value;
+
+        if (!em)                  { e.preventDefault(); return showError('Email is required.', email); }
+        if (!EMAIL_RE.test(em))   { e.preventDefault(); return showError('Enter a valid email address.', email); }
+        if (!pw.trim())           { e.preventDefault(); return showError('Password is required.', pass); }
+        if (pw.length < 6)        { e.preventDefault(); return showError('Password must be at least 6 characters.', pass); }
+
+        email.value = em;
+        btn.disabled = true;            // stop double submit
+        btn.textContent = 'Signing in…';
+    });
+
+    // back button after a failed login
+    window.addEventListener('pageshow', function () {
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+    });
+})();
 </script>
 
 </body>
