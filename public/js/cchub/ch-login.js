@@ -17,7 +17,29 @@
 
   let resendTimerId = 0;
   let verifiedResetPhone = "";
+const csrf = () =>
+  document.querySelector('#registerForm input[name="_token"]')?.value ||
+  document.querySelector('meta[name="csrf-token"]')?.content || "";
 
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+      "X-CSRF-TOKEN": csrf(),
+    },
+    body: JSON.stringify(body),
+  });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    const first = data.errors ? Object.values(data.errors)[0][0] : null;
+    throw new Error(first || data.message || "Something went wrong. Try again.");
+  }
+  return data;
+}
   function openDialog(dialog, focusId) {
     if (!dialog) return;
     if (typeof dialog.showModal === "function") {
@@ -394,45 +416,50 @@
     bindPasswordToggle(loginToggle);
   }
 
-  document.getElementById("loginForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    closeDialog(loginModal);
-  });
-
-  document.getElementById("registerForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const password = document.getElementById("registerPassword")?.value || "";
-    const confirm = document.getElementById("registerConfirm")?.value || "";
-    if (password !== confirm) {
-      window.alert("Passwords do not match.");
-      document.getElementById("registerConfirm")?.focus();
-      return;
-    }
-
-    const phoneVerified = document.getElementById("registerPhoneField")?.dataset.verified === "true";
-    const emailValue = document.getElementById("registerEmail")?.value.trim() || "";
-    const emailVerified = document.getElementById("registerEmailField")?.dataset.verified === "true";
-
-    if (document.getElementById("registerPhoneVerifyBtn") && !phoneVerified) {
-      window.alert("Please verify your phone number before signing up.");
-      document.getElementById("registerPhone")?.focus();
-      return;
-    }
-
-    if (emailValue && document.getElementById("registerEmailVerifyBtn") && !emailVerified) {
-      window.alert("Please verify your email address before signing up.");
-      document.getElementById("registerEmail")?.focus();
-      return;
-    }
-
-    saveAccount({
-      name: document.getElementById("registerName")?.value || "",
-      phone: document.getElementById("registerPhone")?.value || "",
-      email: emailValue,
-      password,
+  document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const err = document.getElementById("loginError");
+  const btn = form.querySelector(".login-submit");
+  err.hidden = true;
+  btn.disabled = true;
+  try {
+    const data = await postJson(form.action, {
+      phone: document.getElementById("loginPhone").value,
+      password: document.getElementById("loginPassword").value,
+      remember: form.querySelector('[name="remember"]').checked,
     });
-    closeDialog(registerModal);
-  });
+    window.location.href = data.redirect || "/";
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("registerForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const err = document.getElementById("registerError");
+  const btn = form.querySelector(".register-submit");
+  err.hidden = true;
+
+  if (form.registerPassword.value !== form.registerConfirm.value) {
+    err.textContent = "Passwords do not match.";
+    err.hidden = false;
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    const data = await postJson(form.action, Object.fromEntries(new FormData(form)));
+    window.location.href = data.redirect || "/";
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+    btn.disabled = false;
+  }
+});
 
   /* ---------- Inline phone / email OTP verification (register form) ---------- */
   function setupRegisterContactVerification(options) {
@@ -453,9 +480,10 @@
 
     if (!field || !input || !verifyBtn || !otpPanel || !otpInput || !confirmBtn) return;
 
-    let pendingCode = "";
     let verifiedValue = "";
-
+const regForm = document.getElementById("registerForm");
+const sendUrl = regForm?.dataset.otpSend;
+const verifyUrl = regForm?.dataset.otpVerify;
     function setMsg(text, kind) {
       if (!msgEl) return;
       if (!text) {
@@ -488,7 +516,6 @@
 
     function resetVerification() {
       field.dataset.verified = "false";
-      pendingCode = "";
       verifiedValue = "";
       input.readOnly = false;
       if (verifiedBadge) verifiedBadge.hidden = true;
@@ -507,31 +534,44 @@
     field.addEventListener("click", showVerifyBtn);
     field.addEventListener("focusin", showVerifyBtn);
 
-    verifyBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const value = input.value.trim();
-      const error = validate(value);
-      if (error) {
-        input.setCustomValidity(error);
-        input.reportValidity();
-        input.focus();
-        return;
-      }
-      input.setCustomValidity("");
+   verifyBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const value = input.value.trim();
+  const error = validate(value);
+  if (error) {
+    input.setCustomValidity(error);
+    input.reportValidity();
+    input.focus();
+    return;
+  }
+  input.setCustomValidity("");
+  verifyBtn.disabled = true;
 
-      pendingCode = generateOtp();
-      verifiedValue = value;
-      otpPanel.hidden = false;
-      otpInput.value = "";
-      setMsg("", "");
-      if (demoEl) {
+  try {
+    const data = await postJson(sendUrl, { type, value });
+    verifiedValue = value;
+    otpPanel.hidden = false;
+    otpInput.value = "";
+    setMsg("", "");
+    if (demoEl) {
+      if (data.debug_otp) {
         demoEl.hidden = false;
-        demoEl.innerHTML = `${sentLabel} <strong>${pendingCode}</strong>`;
+        demoEl.innerHTML = `${sentLabel} <strong>${data.debug_otp}</strong>`;
+      } else {
+        demoEl.hidden = true;
       }
-      verifyBtn.textContent = "Resend";
-      window.requestAnimationFrame(() => otpInput.focus());
-    });
+    }
+    verifyBtn.textContent = "Resend";
+    window.requestAnimationFrame(() => otpInput.focus());
+  } catch (ex) {
+    input.setCustomValidity(ex.message);
+    input.reportValidity();
+    input.focus();
+  } finally {
+    verifyBtn.disabled = false;
+  }
+});
 
     input.addEventListener("input", () => {
       input.setCustomValidity("");
@@ -541,22 +581,25 @@
       }
     });
 
-    confirmBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const entered = otpInput.value.replace(/\D/g, "");
-      if (entered.length !== 6) {
-        setMsg("Enter the complete 6-digit OTP.", "error");
-        otpInput.focus();
-        return;
-      }
-      if (entered !== pendingCode) {
-        setMsg("Incorrect OTP. Please try again.", "error");
-        otpInput.focus();
-        return;
-      }
-      setMsg(`${type === "phone" ? "Phone number" : "Email"} verified successfully.`, "success");
-      markVerified();
-    });
+   confirmBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  const entered = otpInput.value.replace(/\D/g, "");
+  if (entered.length !== 6) {
+    setMsg("Enter the complete 6-digit OTP.", "error");
+    otpInput.focus();
+    return;
+  }
+  confirmBtn.disabled = true;
+  try {
+    await postJson(verifyUrl, { type, value: verifiedValue, otp: entered });
+    markVerified();
+  } catch (ex) {
+    setMsg(ex.message, "error");
+    otpInput.focus();
+  } finally {
+    confirmBtn.disabled = false;
+  }
+});
 
     otpInput.addEventListener("input", () => {
       otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 6);

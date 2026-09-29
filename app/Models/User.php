@@ -16,17 +16,15 @@ class User extends Authenticatable
     protected $fillable = [
         'role_id', 'name', 'email', 'password',
         'phone', 'phone_verified_at','email_verified_at', 'parish', 'diocese', 'rite',
-        'otp_code', 'otp_expires_at',
     ];
  
-    protected $hidden = ['password', 'remember_token', 'otp_code'];
+    protected $hidden = ['password', 'remember_token'];
  
     protected function casts(): array
     {
         return [
              'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
-            'otp_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

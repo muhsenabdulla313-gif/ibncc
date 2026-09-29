@@ -8,7 +8,11 @@ require __DIR__.'/auth.php';
 
 Route::get('/', function () {
     return view('index');
-});
+    
+})->name('index');
+Route::get('/my_account', function () {
+    return view('user.myaccount');
+    });
 Route::get('/trading', function () {
     return view('trading');
 })->name('trading');
@@ -22,8 +26,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/login', [AdminLoginController::class, 'showLogin'])->name('login');
     Route::post('/login', [AdminLoginController::class, 'login'])->name('login.submit');
-   Route::resource('users', UserController::class)
-            ->except(['show']);
+
     Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::post('/logout', [AdminLoginController::class, 'logout'])->name('logout');
     });

@@ -13,7 +13,7 @@ return [
     | a conventional file to locate the various service credentials.
     |
     */
-
+'otp_demo' => env('OTP_DEMO', false),
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

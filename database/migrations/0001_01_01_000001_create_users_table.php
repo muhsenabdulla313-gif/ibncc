@@ -22,11 +22,6 @@ return new class extends Migration
             $table->string('parish')->nullable();
             $table->string('diocese')->nullable();
             $table->string('rite')->nullable();
- 
-          
-            $table->string('otp_code', 6)->nullable();
-            $table->timestamp('otp_expires_at')->nullable();
- 
             $table->rememberToken();
             $table->timestamps();
         });

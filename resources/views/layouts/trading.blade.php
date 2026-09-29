@@ -29,7 +29,7 @@
     <!-- Header -->
     <header class="site-header">
       <div class="header-inner">
-        <a href="index.html#home" class="brand" aria-label="IBNCC Home">
+        <a href="{{route('index')}}" class="brand" aria-label="IBNCC Home">
           <span class="brand-text">
             <img
               src="assets/images/logo_full.png"
@@ -58,7 +58,9 @@
         </form>
 
         <div class="header-actions">
-          <a href="#login" class="btn-login">Login</a>
+@guest
+  <a href="#login" class="btn-login">Login</a>
+@endguest
           <a href="wish-list.html" class="icon-btn" aria-label="Wishlist">
             <i class="fa-regular fa-heart"></i>
           </a>

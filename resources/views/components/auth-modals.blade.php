@@ -57,7 +57,7 @@
           </label>
           <a href="#forgot-password" class="login-forgot">Forgot Password?</a>
         </div>
-
+<p class="otp-error" id="loginError" hidden></p>
         <button type="submit" class="login-submit">
           Login
           <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
@@ -301,7 +301,7 @@
               <label for="registerPhone">Phone Number</label>
               <input id="registerPhone" type="tel" name="phone" placeholder="Enter your phone number" autocomplete="tel" required />
             </div>
-            <button type="button" class="register-verify-btn" id="registerPhoneVerifyBtn" hidden>Verify</button>
+            <button type="button"  class="register-verify-btn" id="registerPhoneVerifyBtn" hidden>Verify</button>
             <span class="register-verified-badge" id="registerPhoneVerified" hidden aria-live="polite">
               <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Verified
             </span>
