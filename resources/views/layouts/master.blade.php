@@ -70,14 +70,7 @@
           <span class="header-notice-icon" aria-hidden="true">
             <i class="fa-solid fa-bell"></i>
           </span>
-          <span class="header-notice-track">
-            <span class="header-notice-marquee">
-              <span class="header-notice-text">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8 PM — Monsoon Empress
-                Hotel, NH Bypass, Palarivattom, Kochi</span>
-              <span class="header-notice-text" aria-hidden="true">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8
-                PM — Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi</span>
-            </span>
-          </span>
+         @include('partials.header-notice')
         </a>
         <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Open menu" aria-expanded="false"
           aria-controls="mobile-menu">

@@ -7,7 +7,135 @@
 
   const ACCOUNTS_KEY = "ccHubAccounts";
   const OTP_KEY = "ccHubOtp";
+  const SESSION_KEY = "ccHubSession";
   const RESEND_SECONDS = 30;
+
+  /* ---------- Signed-in session + header profile icon ---------- */
+  function readSession() {
+    for (const store of [localStorage, sessionStorage]) {
+      try {
+        const session = JSON.parse(store.getItem(SESSION_KEY) || "null");
+        if (session && typeof session === "object") return session;
+      } catch {
+        store.removeItem(SESSION_KEY);
+      }
+    }
+    return null;
+  }
+
+  function writeSession(user, remember) {
+    const session = { name: String(user.name || "").trim(), phone: user.phone || "" };
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session));
+    renderHeaderAuth();
+  }
+
+  function logout() {
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    renderHeaderAuth();
+  }
+
+  function initialOf(name) {
+    const first = Array.from(String(name || "").trim())[0];
+    return first ? first.toLocaleUpperCase() : "";
+  }
+
+  function closeProfileMenus(except) {
+    document.querySelectorAll(".header-profile").forEach((profile) => {
+      if (profile === except) return;
+      const menu = profile.querySelector(".header-profile-menu");
+      const btn = profile.querySelector(".header-profile-btn");
+      if (menu) menu.hidden = true;
+      btn?.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function buildProfile() {
+    const profile = document.createElement("div");
+    profile.className = "header-profile";
+    profile.innerHTML = `
+      <button type="button" class="header-profile-btn" aria-haspopup="menu" aria-expanded="false">
+        <span class="header-profile-initial" aria-hidden="true"></span>
+      </button>
+      <div class="header-profile-menu" role="menu" hidden>
+        <p class="header-profile-name"></p>
+        <a href="my-account.html" class="header-profile-item" role="menuitem">
+          <i class="fa-regular fa-user" aria-hidden="true"></i> My Account
+        </a>
+        <button type="button" class="header-profile-item" role="menuitem" data-auth-logout>
+          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout
+        </button>
+      </div>`;
+
+    const btn = profile.querySelector(".header-profile-btn");
+    const menu = profile.querySelector(".header-profile-menu");
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = menu.hidden;
+      closeProfileMenus(profile);
+      menu.hidden = !opening;
+      btn.setAttribute("aria-expanded", String(opening));
+    });
+
+    profile.querySelector("[data-auth-logout]").addEventListener("click", () => {
+      logout();
+      document.querySelector(".header-actions .btn-login")?.focus();
+    });
+
+    return profile;
+  }
+
+  function renderHeaderAuth() {
+    const session = readSession();
+    document.querySelectorAll(".header-actions .btn-login").forEach((loginLink) => {
+      let profile = loginLink.nextElementSibling?.classList.contains("header-profile")
+        ? loginLink.nextElementSibling
+        : null;
+
+      if (!session) {
+        loginLink.hidden = false;
+        profile?.remove();
+        return;
+      }
+
+      if (!profile) {
+        profile = buildProfile();
+        loginLink.after(profile);
+      }
+
+      const name = session.name || "Member";
+      const initial = initialOf(session.name);
+      const initialEl = profile.querySelector(".header-profile-initial");
+      initialEl.textContent = initial;
+      initialEl.classList.toggle("is-fallback", !initial);
+      if (!initial) initialEl.innerHTML = '<i class="fa-solid fa-user"></i>';
+      profile.querySelector(".header-profile-btn").setAttribute("aria-label", `Account menu for ${name}`);
+      profile.querySelector(".header-profile-name").textContent = name;
+      loginLink.hidden = true;
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".header-profile")) closeProfileMenus();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const open = document.querySelector(".header-profile-menu:not([hidden])");
+    if (!open) return;
+    closeProfileMenus();
+    open.closest(".header-profile")?.querySelector(".header-profile-btn")?.focus();
+  });
+
+  window.addEventListener("storage", (e) => {
+    if (e.key === SESSION_KEY || e.key === null) renderHeaderAuth();
+  });
+
+  window.ccHubAuth = { getSession: readSession, logout };
+  renderHeaderAuth();
 
   const loginModal = document.getElementById("loginModal");
   const registerModal = document.getElementById("registerModal");
@@ -17,29 +145,7 @@
 
   let resendTimerId = 0;
   let verifiedResetPhone = "";
-const csrf = () =>
-  document.querySelector('#registerForm input[name="_token"]')?.value ||
-  document.querySelector('meta[name="csrf-token"]')?.content || "";
 
-async function postJson(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      "X-CSRF-TOKEN": csrf(),
-    },
-    body: JSON.stringify(body),
-  });
-  let data = {};
-  try { data = await res.json(); } catch {}
-  if (!res.ok) {
-    const first = data.errors ? Object.values(data.errors)[0][0] : null;
-    throw new Error(first || data.message || "Something went wrong. Try again.");
-  }
-  return data;
-}
   function openDialog(dialog, focusId) {
     if (!dialog) return;
     if (typeof dialog.showModal === "function") {
@@ -416,50 +522,70 @@ async function postJson(url, body) {
     bindPasswordToggle(loginToggle);
   }
 
-  document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const err = document.getElementById("loginError");
-  const btn = form.querySelector(".login-submit");
-  err.hidden = true;
-  btn.disabled = true;
-  try {
-    const data = await postJson(form.action, {
-      phone: document.getElementById("loginPhone").value,
-      password: document.getElementById("loginPassword").value,
-      remember: form.querySelector('[name="remember"]').checked,
-    });
-    window.location.href = data.redirect || "/";
-  } catch (ex) {
-    err.textContent = ex.message;
-    err.hidden = false;
-    btn.disabled = false;
-  }
-});
+  document.getElementById("loginPassword")?.addEventListener("input", () => {
+    document.getElementById("loginPassword").setCustomValidity("");
+  });
 
-document.getElementById("registerForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const err = document.getElementById("registerError");
-  const btn = form.querySelector(".register-submit");
-  err.hidden = true;
+  document.getElementById("loginForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const phoneInput = document.getElementById("loginPhone");
+    const passwordInput = document.getElementById("loginPassword");
+    const account = findAccount(phoneInput?.value);
 
-  if (form.registerPassword.value !== form.registerConfirm.value) {
-    err.textContent = "Passwords do not match.";
-    err.hidden = false;
-    return;
-  }
+    if (!account) {
+      phoneInput?.setCustomValidity("This mobile number is not registered. Please sign up first.");
+      phoneInput?.reportValidity();
+      return;
+    }
 
-  btn.disabled = true;
-  try {
-    const data = await postJson(form.action, Object.fromEntries(new FormData(form)));
-    window.location.href = data.redirect || "/";
-  } catch (ex) {
-    err.textContent = ex.message;
-    err.hidden = false;
-    btn.disabled = false;
-  }
-});
+    if (account.password && account.password !== passwordInput?.value) {
+      passwordInput?.setCustomValidity("Incorrect password. Please try again.");
+      passwordInput?.reportValidity();
+      return;
+    }
+
+    writeSession(account, Boolean(form.elements.remember?.checked));
+    form.reset();
+    closeDialog(loginModal);
+  });
+
+  document.getElementById("registerForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const password = document.getElementById("registerPassword")?.value || "";
+    const confirm = document.getElementById("registerConfirm")?.value || "";
+    if (password !== confirm) {
+      window.alert("Passwords do not match.");
+      document.getElementById("registerConfirm")?.focus();
+      return;
+    }
+
+    const phoneVerified = document.getElementById("registerPhoneField")?.dataset.verified === "true";
+    const emailValue = document.getElementById("registerEmail")?.value.trim() || "";
+    const emailVerified = document.getElementById("registerEmailField")?.dataset.verified === "true";
+
+    if (document.getElementById("registerPhoneVerifyBtn") && !phoneVerified) {
+      window.alert("Please verify your phone number before signing up.");
+      document.getElementById("registerPhone")?.focus();
+      return;
+    }
+
+    if (emailValue && document.getElementById("registerEmailVerifyBtn") && !emailVerified) {
+      window.alert("Please verify your email address before signing up.");
+      document.getElementById("registerEmail")?.focus();
+      return;
+    }
+
+    const account = {
+      name: document.getElementById("registerName")?.value.trim() || "",
+      phone: document.getElementById("registerPhone")?.value || "",
+      email: emailValue,
+      password,
+    };
+    saveAccount(account);
+    writeSession(account, true);
+    closeDialog(registerModal);
+  });
 
   /* ---------- Inline phone / email OTP verification (register form) ---------- */
   function setupRegisterContactVerification(options) {
@@ -480,10 +606,9 @@ document.getElementById("registerForm")?.addEventListener("submit", async (e) =>
 
     if (!field || !input || !verifyBtn || !otpPanel || !otpInput || !confirmBtn) return;
 
+    let pendingCode = "";
     let verifiedValue = "";
-const regForm = document.getElementById("registerForm");
-const sendUrl = regForm?.dataset.otpSend;
-const verifyUrl = regForm?.dataset.otpVerify;
+
     function setMsg(text, kind) {
       if (!msgEl) return;
       if (!text) {
@@ -516,6 +641,7 @@ const verifyUrl = regForm?.dataset.otpVerify;
 
     function resetVerification() {
       field.dataset.verified = "false";
+      pendingCode = "";
       verifiedValue = "";
       input.readOnly = false;
       if (verifiedBadge) verifiedBadge.hidden = true;
@@ -534,44 +660,31 @@ const verifyUrl = regForm?.dataset.otpVerify;
     field.addEventListener("click", showVerifyBtn);
     field.addEventListener("focusin", showVerifyBtn);
 
-   verifyBtn.addEventListener("click", async (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  const value = input.value.trim();
-  const error = validate(value);
-  if (error) {
-    input.setCustomValidity(error);
-    input.reportValidity();
-    input.focus();
-    return;
-  }
-  input.setCustomValidity("");
-  verifyBtn.disabled = true;
-
-  try {
-    const data = await postJson(sendUrl, { type, value });
-    verifiedValue = value;
-    otpPanel.hidden = false;
-    otpInput.value = "";
-    setMsg("", "");
-    if (demoEl) {
-      if (data.debug_otp) {
-        demoEl.hidden = false;
-        demoEl.innerHTML = `${sentLabel} <strong>${data.debug_otp}</strong>`;
-      } else {
-        demoEl.hidden = true;
+    verifyBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const value = input.value.trim();
+      const error = validate(value);
+      if (error) {
+        input.setCustomValidity(error);
+        input.reportValidity();
+        input.focus();
+        return;
       }
-    }
-    verifyBtn.textContent = "Resend";
-    window.requestAnimationFrame(() => otpInput.focus());
-  } catch (ex) {
-    input.setCustomValidity(ex.message);
-    input.reportValidity();
-    input.focus();
-  } finally {
-    verifyBtn.disabled = false;
-  }
-});
+      input.setCustomValidity("");
+
+      pendingCode = generateOtp();
+      verifiedValue = value;
+      otpPanel.hidden = false;
+      otpInput.value = "";
+      setMsg("", "");
+      if (demoEl) {
+        demoEl.hidden = false;
+        demoEl.innerHTML = `${sentLabel} <strong>${pendingCode}</strong>`;
+      }
+      verifyBtn.textContent = "Resend";
+      window.requestAnimationFrame(() => otpInput.focus());
+    });
 
     input.addEventListener("input", () => {
       input.setCustomValidity("");
@@ -581,25 +694,22 @@ const verifyUrl = regForm?.dataset.otpVerify;
       }
     });
 
-   confirmBtn.addEventListener("click", async (e) => {
-  e.preventDefault();
-  const entered = otpInput.value.replace(/\D/g, "");
-  if (entered.length !== 6) {
-    setMsg("Enter the complete 6-digit OTP.", "error");
-    otpInput.focus();
-    return;
-  }
-  confirmBtn.disabled = true;
-  try {
-    await postJson(verifyUrl, { type, value: verifiedValue, otp: entered });
-    markVerified();
-  } catch (ex) {
-    setMsg(ex.message, "error");
-    otpInput.focus();
-  } finally {
-    confirmBtn.disabled = false;
-  }
-});
+    confirmBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const entered = otpInput.value.replace(/\D/g, "");
+      if (entered.length !== 6) {
+        setMsg("Enter the complete 6-digit OTP.", "error");
+        otpInput.focus();
+        return;
+      }
+      if (entered !== pendingCode) {
+        setMsg("Incorrect OTP. Please try again.", "error");
+        otpInput.focus();
+        return;
+      }
+      setMsg(`${type === "phone" ? "Phone number" : "Email"} verified successfully.`, "success");
+      markVerified();
+    });
 
     otpInput.addEventListener("input", () => {
       otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 6);

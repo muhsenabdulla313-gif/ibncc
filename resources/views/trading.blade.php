@@ -2,116 +2,40 @@
 @section('body')
    
 
-    <section class="hero" aria-label="Promotional banners">
-      <div class="hero-slider" id="heroSlider">
+    @php
+    $banners = \App\Models\Banner::where('is_active', true)->orderBy('sort_order')->orderBy('id')->get();
+@endphp
+
+@if($banners->count())
+<section class="hero" aria-label="Promotional banners">
+    <div class="hero-slider" id="heroSlider">
         <div class="hero-track" id="heroTrack">
-          <article class="hero-slide is-active" data-index="0">
-            <img
-              src="assets/images/gift2.png"
-              alt="Elegant jewelry collection against soft floral backdrop"
-              class="hero-slide-img"
-            />
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content hero-content-right">
-              <p class="hero-eyebrow">IBNCC Presents</p>
-              <h2 class="hero-title">Floral Bloom</h2>
-              <p class="hero-subtitle">
-                Timeless pieces for moments that matter
-              </p>
-              <a href="#shop" class="hero-cta">Shop Now</a>
-            </div>
-          </article>
-
-          <article class="hero-slide" data-index="1">
-            <img
-              src="assets/images/harvest.png"
-              alt="Fresh farm produce harvested in golden sunlight"
-              class="hero-slide-img"
-            />
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content hero-content-left">
-              <p class="hero-eyebrow">Farm &amp; Garden</p>
-              <h2 class="hero-title">Harvest Fresh</h2>
-              <p class="hero-subtitle">
-                Quality produce from trusted local growers
-              </p>
-              <a href="#farm" class="hero-cta">Explore Deals</a>
-            </div>
-          </article>
-
-          <article class="hero-slide" data-index="2">
-            <img
-              src="assets/images/network1.png"
-              alt="Professionals connecting at a business networking event"
-              class="hero-slide-img"
-            />
-            <div class="hero-slide-overlay darker"></div>
-            <div class="hero-slide-content hero-content-left">
-              <p class="hero-eyebrow">Networking</p>
-              <h2 class="hero-title">Connect &amp; Grow</h2>
-              <p class="hero-subtitle">
-                Build trusted partnerships across the community
-              </p>
-              <a href="#networking" class="hero-cta">Join Network</a>
-            </div>
-          </article>
-
-          <article class="hero-slide" data-index="3">
-            <img
-              src="assets/images/sld3.png"
-              alt="Colorful fresh food market with vegetables and groceries"
-              class="hero-slide-img"
-            />
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content hero-content-right">
-              <p class="hero-eyebrow">Food Items</p>
-              <h2 class="hero-title">Market Essentials</h2>
-              <p class="hero-subtitle">Everyday staples delivered with care</p>
-              <a href="#food" class="hero-cta">Shop Food</a>
-            </div>
-          </article>
-
-          <article class="hero-slide" data-index="4">
-            <img
-              src="assets/images/wholesale.png"
-              alt="Cargo containers at a trading port during sunset"
-              class="hero-slide-img"
-            />
-            <div class="hero-slide-overlay darker"></div>
-            <div class="hero-slide-content hero-content-left">
-              <p class="hero-eyebrow">Trading Hub</p>
-              <h2 class="hero-title">Bulk. Better. Together.</h2>
-              <p class="hero-subtitle">
-                Commodities and wholesale deals you can trust
-              </p>
-              <a href="ch-trading.html" class="hero-cta">Start Trading</a>
-            </div>
-          </article>
+          @foreach($banners as $b)
+    <article class="hero-slide {{ $loop->first ? 'is-active' : '' }}" data-index="{{ $loop->index }}">
+        @if($b->link)
+            <a href="{{ url($b->link) }}" style="display:block">
+                <img src="{{ asset($b->image) }}" alt="Banner {{ $loop->iteration }}"
+                    class="hero-slide-img" @if(!$loop->first) loading="lazy" @endif>
+            </a>
+        @else
+            <img src="{{ asset($b->image) }}" alt="Banner {{ $loop->iteration }}"
+                class="hero-slide-img" @if(!$loop->first) loading="lazy" @endif>
+        @endif
+    </article>
+@endforeach
         </div>
 
-        <button
-          class="hero-arrow hero-arrow-prev"
-          id="heroPrev"
-          aria-label="Previous slide"
-        >
-          <i class="fa-solid fa-chevron-left"></i>
+        <button class="hero-arrow hero-arrow-prev" id="heroPrev" aria-label="Previous slide">
+            <i class="fa-solid fa-chevron-left"></i>
         </button>
-        <button
-          class="hero-arrow hero-arrow-next"
-          id="heroNext"
-          aria-label="Next slide"
-        >
-          <i class="fa-solid fa-chevron-right"></i>
+        <button class="hero-arrow hero-arrow-next" id="heroNext" aria-label="Next slide">
+            <i class="fa-solid fa-chevron-right"></i>
         </button>
 
-        <div
-          class="hero-dots"
-          id="heroDots"
-          role="tablist"
-          aria-label="Slide pagination"
-        ></div>
-      </div>
-    </section>
+        <div class="hero-dots" id="heroDots" role="tablist" aria-label="Slide pagination"></div>
+    </div>
+</section>
+@endif
 
     <main class="trading-main">
       <!-- TRADING — scrolls right → left -->

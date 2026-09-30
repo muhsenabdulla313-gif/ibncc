@@ -1,40 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>Kaiadmin - Bootstrap 5 Admin Dashboard</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Admin</title>
     <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
-    <link rel="icon" href="asset/img/kaiadmin/favicon.ico" type="image/x-icon" />
+    <link rel="icon" href="{{ asset('asset/img/kaiadmin/favicon.ico') }}" type="image/x-icon" />
 
-    <script src="asset/js/plugin/webfont/webfont.min.js"></script>
+    <script src="{{ asset('asset/js/plugin/webfont/webfont.min.js') }}"></script>
     <script>
         WebFont.load({
             google: { families: ["Public Sans:300,400,500,600,700"] },
             custom: {
-                families: [
-                    "Font Awesome 5 Solid",
-                    "Font Awesome 5 Regular",
-                    "Font Awesome 5 Brands",
-                    "simple-line-icons",
-                ],
-                urls: ["asset/css/fonts.min.css"],
+                families: ["Font Awesome 5 Solid", "Font Awesome 5 Regular", "Font Awesome 5 Brands", "simple-line-icons"],
+                urls: ["{{ asset('asset/css/fonts.min.css') }}"],
             },
-            active: function () {
-                sessionStorage.fonts = true;
-            },
+            active: function () { sessionStorage.fonts = true; },
         });
     </script>
 
-    <!-- CSS Files -->
-    <link rel="stylesheet" href="asset/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="asset/css/plugins.min.css" />
-    <link rel="stylesheet" href="asset/css/kaiadmin.min.css" />
-
-    <!-- CSS Just for demo purpose, don't include it in your project -->
-    <link rel="stylesheet" href="asset/css/demo.css" />
+    <link rel="stylesheet" href="{{ asset('asset/css/bootstrap.min.css') }}" />
+    <link rel="stylesheet" href="{{ asset('asset/css/plugins.min.css') }}" />
+    <link rel="stylesheet" href="{{ asset('asset/css/kaiadmin.min.css') }}" />
 </head>
-
 <body>
     <div class="wrapper">
         <!-- Sidebar -->
@@ -62,66 +50,62 @@
             </div>
             <div class="sidebar-wrapper scrollbar scrollbar-inner">
                 <div class="sidebar-content">
-                    <ul class="nav nav-secondary">
-                        <li class="nav-item active">
-                            <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
-                                <i class="fas fa-home"></i>
-                                <p>Dashboard</p>
-                                <span class="caret"></span>
-                            </a>
-                            <div class="collapse" id="dashboard">
-                                <ul class="nav nav-collapse">
-                                    <li>
-                                        <a href="../demo1/index.html">
-                                            <span class="sub-item">Dashboard 1</span>
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </li>
-                        <li class="nav-section">
-                            <span class="sidebar-mini-icon">
-                                <i class="fa fa-ellipsis-h"></i>
-                            </span>
-                            <h4 class="text-section">Components</h4>
-                        </li>
-                        <li class="nav-item">
-                            <a data-bs-toggle="collapse" href="#base">
-                                <i class="fas fa-layer-group"></i>
-                                <p>Base</p>
-                                <span class="caret"></span>
-                            </a>
-                            <div class="collapse" id="base">
-                                <ul class="nav nav-collapse">
-                                   
-                                    
-                                    
-                                  
-                                 
-                                    
-                                   
-                                    <li>
-                                        <a href="components/typography.html">
-                                            <span class="sub-item">Typography</span>
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </li>
-                      
-                        
-                       
-                        
-                       
-                        
-                        
-                        
-                        
-                        
-                        
-                      
-                     
-                    </ul>
+                 <ul class="nav nav-secondary">
+    <li class="nav-item active">
+        <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
+            <i class="fas fa-home"></i>
+            <p>Dashboard</p>
+            <span class="caret"></span>
+        </a>
+        <div class="collapse" id="dashboard">
+            <ul class="nav nav-collapse">
+                <li>
+                    <a href="../demo1/index.html">
+                        <span class="sub-item">Dashboard 1</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </li>
+
+    <li class="nav-section">
+        <span class="sidebar-mini-icon">
+            <i class="fa fa-ellipsis-h"></i>
+        </span>
+        <h4 class="text-section">Components</h4>
+    </li>
+
+    <li class="nav-item">
+        <a data-bs-toggle="collapse" href="#base">
+            <i class="fas fa-layer-group"></i>
+            <p>Base</p>
+            <span class="caret"></span>
+        </a>
+        <div class="collapse" id="base">
+            <ul class="nav nav-collapse">
+                <li>
+                    <a href="components/typography.html">
+                        <span class="sub-item">Typography</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </li>
+
+    {{-- Header Notice --}}
+    <li class="nav-item {{ request()->routeIs('admin.header-notice.*') ? 'active' : '' }}">
+        <a href="{{ route('admin.header-notice.index') }}">
+            <i class="fas fa-bullhorn"></i>
+            <p>Header Notice</p>
+        </a>
+    </li>
+    <li class="nav-item {{ request()->routeIs('admin.banners.*') ? 'active' : '' }}">
+    <a href="{{ route('admin.banners.index') }}">
+        <i class="fas fa-images"></i>
+        <p>Hero Banners</p>
+    </a>
+</li>
+</ul>
                 </div>
             </div>
         </div>
@@ -429,99 +413,7 @@
             </div>
 
             <div class="container">
-                <div class="page-inner">
-                    <div class="d-flex align-items-left align-items-md-center flex-column flex-md-row pt-2 pb-4">
-                        <div>
-                            <h3 class="fw-bold mb-3">Dashboard</h3>
-                            <h6 class="op-7 mb-2">Free Bootstrap 5 Admin Dashboard</h6>
-                        </div>
-                        <div class="ms-md-auto py-2 py-md-0">
-                            <a href="#" class="btn btn-label-info btn-round me-2">Manage</a>
-                            <a href="#" class="btn btn-primary btn-round">Add Customer</a>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-sm-6 col-md-3">
-                            <div class="card card-stats card-round">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-icon">
-                                            <div class="icon-big text-center icon-primary bubble-shadow-small">
-                                                <i class="fas fa-users"></i>
-                                            </div>
-                                        </div>
-                                        <div class="col col-stats ms-3 ms-sm-0">
-                                            <div class="numbers">
-                                                <p class="card-category">Visitors</p>
-                                                <h4 class="card-title">1,294</h4>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-6 col-md-3">
-                            <div class="card card-stats card-round">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-icon">
-                                            <div class="icon-big text-center icon-info bubble-shadow-small">
-                                                <i class="fas fa-user-check"></i>
-                                            </div>
-                                        </div>
-                                        <div class="col col-stats ms-3 ms-sm-0">
-                                            <div class="numbers">
-                                                <p class="card-category">Subscribers</p>
-                                                <h4 class="card-title">1303</h4>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-6 col-md-3">
-                            <div class="card card-stats card-round">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-icon">
-                                            <div class="icon-big text-center icon-success bubble-shadow-small">
-                                                <i class="fas fa-luggage-cart"></i>
-                                            </div>
-                                        </div>
-                                        <div class="col col-stats ms-3 ms-sm-0">
-                                            <div class="numbers">
-                                                <p class="card-category">Sales</p>
-                                                <h4 class="card-title">$ 1,345</h4>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-6 col-md-3">
-                            <div class="card card-stats card-round">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-icon">
-                                            <div class="icon-big text-center icon-secondary bubble-shadow-small">
-                                                <i class="far fa-check-circle"></i>
-                                            </div>
-                                        </div>
-                                        <div class="col col-stats ms-3 ms-sm-0">
-                                            <div class="numbers">
-                                                <p class="card-category">Order</p>
-                                                <h4 class="card-title">576</h4>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-
-
-                </div>
+               @yield('body')
             </div>
 
             <footer class="footer">
@@ -615,69 +507,12 @@
         <!-- End Custom template -->
     </div>
     <!--   Core JS Files   -->
-    <script src="asset/js/core/jquery-3.7.1.min.js"></script>
-    <script src="asset/js/core/popper.min.js"></script>
-    <script src="asset/js/core/bootstrap.min.js"></script>
+      <script src="{{ asset('asset/js/core/jquery-3.7.1.min.js') }}"></script>
+    <script src="{{ asset('asset/js/core/popper.min.js') }}"></script>
+    <script src="{{ asset('asset/js/core/bootstrap.min.js') }}"></script>
+    <script src="{{ asset('asset/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js') }}"></script>
+    <script src="{{ asset('asset/js/kaiadmin.min.js') }}"></script>
 
-    <!-- jQuery Scrollbar -->
-    <script src="asset/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
-
-    <!-- Chart JS -->
-    <script src="asset/js/plugin/chart.js/chart.min.js"></script>
-
-    <!-- jQuery Sparkline -->
-    <script src="asset/js/plugin/jquery.sparkline/jquery.sparkline.min.js"></script>
-
-    <!-- Chart Circle -->
-    <script src="asset/js/plugin/chart-circle/circles.min.js"></script>
-
-    <!-- Datatables -->
-    <script src="asset/js/plugin/datatables/datatables.min.js"></script>
-
-    <!-- Bootstrap Notify -->
-    <script src="asset/js/plugin/bootstrap-notify/bootstrap-notify.min.js"></script>
-
-    <!-- jQuery Vector Maps -->
-    <script src="asset/js/plugin/jsvectormap/jsvectormap.min.js"></script>
-    <script src="asset/js/plugin/jsvectormap/world.js"></script>
-
-    <!-- Sweet Alert -->
-    <script src="asset/js/plugin/sweetalert/sweetalert.min.js"></script>
-
-    <!-- Kaiadmin JS -->
-    <script src="asset/js/kaiadmin.min.js"></script>
-
-    <!-- Kaiadmin DEMO methods, don't include it in your project! -->
-    <script src="asset/js/setting-demo.js"></script>
-    <script src="asset/js/demo.js"></script>
-    <script>
-        $("#lineChart").sparkline([102, 109, 120, 99, 110, 105, 115], {
-            type: "line",
-            height: "70",
-            width: "100%",
-            lineWidth: "2",
-            lineColor: "#177dff",
-            fillColor: "rgba(23, 125, 255, 0.14)",
-        });
-
-        $("#lineChart2").sparkline([99, 125, 122, 105, 110, 124, 115], {
-            type: "line",
-            height: "70",
-            width: "100%",
-            lineWidth: "2",
-            lineColor: "#f3545d",
-            fillColor: "rgba(243, 84, 93, .14)",
-        });
-
-        $("#lineChart3").sparkline([105, 103, 123, 100, 95, 105, 115], {
-            type: "line",
-            height: "70",
-            width: "100%",
-            lineWidth: "2",
-            lineColor: "#ffa534",
-            fillColor: "rgba(255, 165, 52, .14)",
-        });
-    </script>
+    @stack('scripts')
 </body>
-
 </html>
