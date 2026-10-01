@@ -1,141 +1,28 @@
 /**
- * CC Hub — Login, register, OTP, and reset-password modals
+ * IBNCC - modal open/close, password toggle, forgot-password OTP UI.
+ * Login / register / signup OTP are handled by register.js (server side).
  */
-
 (() => {
   "use strict";
 
-  const ACCOUNTS_KEY = "ccHubAccounts";
   const OTP_KEY = "ccHubOtp";
-  const SESSION_KEY = "ccHubSession";
   const RESEND_SECONDS = 30;
 
-  /* ---------- Signed-in session + header profile icon ---------- */
-  function readSession() {
-    for (const store of [localStorage, sessionStorage]) {
-      try {
-        const session = JSON.parse(store.getItem(SESSION_KEY) || "null");
-        if (session && typeof session === "object") return session;
-      } catch {
-        store.removeItem(SESSION_KEY);
-      }
-    }
-    return null;
-  }
-
-  function writeSession(user, remember) {
-    const session = { name: String(user.name || "").trim(), phone: user.phone || "" };
-    localStorage.removeItem(SESSION_KEY);
-    sessionStorage.removeItem(SESSION_KEY);
-    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session));
-    renderHeaderAuth();
-  }
-
-  function logout() {
-    localStorage.removeItem(SESSION_KEY);
-    sessionStorage.removeItem(SESSION_KEY);
-    renderHeaderAuth();
-  }
-
-  function initialOf(name) {
-    const first = Array.from(String(name || "").trim())[0];
-    return first ? first.toLocaleUpperCase() : "";
-  }
-
-  function closeProfileMenus(except) {
-    document.querySelectorAll(".header-profile").forEach((profile) => {
-      if (profile === except) return;
-      const menu = profile.querySelector(".header-profile-menu");
-      const btn = profile.querySelector(".header-profile-btn");
-      if (menu) menu.hidden = true;
-      btn?.setAttribute("aria-expanded", "false");
-    });
-  }
-
-  function buildProfile() {
-    const profile = document.createElement("div");
-    profile.className = "header-profile";
-    profile.innerHTML = `
-      <button type="button" class="header-profile-btn" aria-haspopup="menu" aria-expanded="false">
-        <span class="header-profile-initial" aria-hidden="true"></span>
-      </button>
-      <div class="header-profile-menu" role="menu" hidden>
-        <p class="header-profile-name"></p>
-        <a href="my-account.html" class="header-profile-item" role="menuitem">
-          <i class="fa-regular fa-user" aria-hidden="true"></i> My Account
-        </a>
-        <button type="button" class="header-profile-item" role="menuitem" data-auth-logout>
-          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout
-        </button>
-      </div>`;
-
-    const btn = profile.querySelector(".header-profile-btn");
-    const menu = profile.querySelector(".header-profile-menu");
-
-    btn.addEventListener("click", (e) => {
+  /* ---------- Header user dropdown (Blade @auth) ---------- */
+  const userBtn = document.getElementById("userMenuBtn");
+  const userDropdown = document.getElementById("userDropdown");
+  if (userBtn && userDropdown) {
+    userBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const opening = menu.hidden;
-      closeProfileMenus(profile);
-      menu.hidden = !opening;
-      btn.setAttribute("aria-expanded", String(opening));
+      userDropdown.classList.toggle("open");
     });
-
-    profile.querySelector("[data-auth-logout]").addEventListener("click", () => {
-      logout();
-      document.querySelector(".header-actions .btn-login")?.focus();
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".user-menu")) userDropdown.classList.remove("open");
     });
-
-    return profile;
-  }
-
-  function renderHeaderAuth() {
-    const session = readSession();
-    document.querySelectorAll(".header-actions .btn-login").forEach((loginLink) => {
-      let profile = loginLink.nextElementSibling?.classList.contains("header-profile")
-        ? loginLink.nextElementSibling
-        : null;
-
-      if (!session) {
-        loginLink.hidden = false;
-        profile?.remove();
-        return;
-      }
-
-      if (!profile) {
-        profile = buildProfile();
-        loginLink.after(profile);
-      }
-
-      const name = session.name || "Member";
-      const initial = initialOf(session.name);
-      const initialEl = profile.querySelector(".header-profile-initial");
-      initialEl.textContent = initial;
-      initialEl.classList.toggle("is-fallback", !initial);
-      if (!initial) initialEl.innerHTML = '<i class="fa-solid fa-user"></i>';
-      profile.querySelector(".header-profile-btn").setAttribute("aria-label", `Account menu for ${name}`);
-      profile.querySelector(".header-profile-name").textContent = name;
-      loginLink.hidden = true;
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") userDropdown.classList.remove("open");
     });
   }
-
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".header-profile")) closeProfileMenus();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    const open = document.querySelector(".header-profile-menu:not([hidden])");
-    if (!open) return;
-    closeProfileMenus();
-    open.closest(".header-profile")?.querySelector(".header-profile-btn")?.focus();
-  });
-
-  window.addEventListener("storage", (e) => {
-    if (e.key === SESSION_KEY || e.key === null) renderHeaderAuth();
-  });
-
-  window.ccHubAuth = { getSession: readSession, logout };
-  renderHeaderAuth();
 
   const loginModal = document.getElementById("loginModal");
   const registerModal = document.getElementById("registerModal");
@@ -183,29 +70,6 @@
     openDialog(registerModal, "registerName");
   }
 
-  function getAccounts() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function findAccount(phone) {
-    const normalized = normalizePhone(phone);
-    return getAccounts().find((item) => normalizePhone(item.phone) === normalized) || null;
-  }
-
-  function saveAccount(account) {
-    const phone = normalizePhone(account.phone);
-    if (!phone) return;
-    const existing = findAccount(phone) || {};
-    const accounts = getAccounts().filter((item) => normalizePhone(item.phone) !== phone);
-    accounts.push({ ...existing, ...account, phone });
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  }
-
   function normalizePhone(value) {
     return String(value || "").replace(/\D/g, "");
   }
@@ -216,25 +80,22 @@
     return `${digits.slice(0, 2)}${"•".repeat(Math.max(0, digits.length - 6))}${digits.slice(-4)}`;
   }
 
+  /* ---------- Forgot password (still demo: not connected to server) ---------- */
   function otpInputs() {
     return [...(otpModal?.querySelectorAll(".otp-inputs input") || [])];
   }
 
   function readOtpValue() {
-    return otpInputs()
-      .map((input) => input.value.replace(/\D/g, ""))
-      .join("");
+    return otpInputs().map((i) => i.value.replace(/\D/g, "")).join("");
   }
 
   function clearOtpInputs() {
-    otpInputs().forEach((input) => {
-      input.value = "";
-    });
+    otpInputs().forEach((i) => { i.value = ""; });
   }
 
-  function setOtpMessage(type, text) {
-    const error = document.getElementById("otpError");
-    const success = document.getElementById("otpSuccess");
+  function setMessage(errId, okId, type, text) {
+    const error = document.getElementById(errId);
+    const success = document.getElementById(okId);
     if (error) {
       error.hidden = type !== "error";
       error.textContent = type === "error" ? text : "";
@@ -245,19 +106,19 @@
     }
   }
 
+  const setOtpMessage = (t, m) => setMessage("otpError", "otpSuccess", t, m);
+  const setResetPasswordMessage = (t, m) => setMessage("resetPasswordError", "resetPasswordSuccess", t, m);
+
   function generateOtp() {
     return String(Math.floor(100000 + Math.random() * 900000));
   }
 
   function persistOtp(phone, code) {
-    sessionStorage.setItem(
-      OTP_KEY,
-      JSON.stringify({
-        phone: normalizePhone(phone),
-        code,
-        expires: Date.now() + 5 * 60 * 1000,
-      })
-    );
+    sessionStorage.setItem(OTP_KEY, JSON.stringify({
+      phone: normalizePhone(phone),
+      code,
+      expires: Date.now() + 5 * 60 * 1000,
+    }));
   }
 
   function readStoredOtp() {
@@ -309,46 +170,26 @@
     startResendTimer();
   }
 
-  function resolveResetPhone() {
-    const typed = document.getElementById("loginPhone")?.value.trim() || "";
-    const accounts = getAccounts();
-    if (typed) return typed;
-    return accounts[accounts.length - 1]?.phone || "";
-  }
-
   function openOtp(e) {
     e?.preventDefault();
     const phoneInput = document.getElementById("loginPhone");
-    const phone = resolveResetPhone();
+    const phone = phoneInput?.value.trim() || "";
 
-    if (phoneInput) phoneInput.setCustomValidity("");
+    phoneInput?.setCustomValidity("");
 
     if (!normalizePhone(phone)) {
       if (phoneInput) {
-        phoneInput.setCustomValidity("Enter the mobile number used at signup.");
+        phoneInput.setCustomValidity("Enter your registered mobile number.");
         phoneInput.reportValidity();
         phoneInput.focus();
       }
       return;
     }
-
-    const accounts = getAccounts();
-    if (accounts.length && !findAccount(phone)) {
-      if (phoneInput) {
-        phoneInput.setCustomValidity("This mobile number is not registered. Please sign up first.");
-        phoneInput.reportValidity();
-        phoneInput.focus();
-      }
-      return;
-    }
-
-    const account = findAccount(phone);
-    const targetPhone = account?.phone || phone;
 
     closeDialog(loginModal);
     closeDialog(registerModal);
     closeDialog(resetPasswordModal);
-    sendOtp(targetPhone);
+    sendOtp(phone);
     openDialog(otpModal, "otpDigit1");
   }
 
@@ -362,12 +203,10 @@
       otpInputs()[0]?.focus();
       return;
     }
-
     if (!stored || Date.now() > stored.expires) {
       setOtpMessage("error", "This OTP has expired. Please resend a new code.");
       return;
     }
-
     if (entered !== stored.code) {
       setOtpMessage("error", "Invalid OTP. Please try again.");
       otpInputs()[otpInputs().length - 1]?.focus();
@@ -382,19 +221,6 @@
       closeDialog(otpModal);
       openResetPassword();
     }, 500);
-  }
-
-  function setResetPasswordMessage(type, text) {
-    const error = document.getElementById("resetPasswordError");
-    const success = document.getElementById("resetPasswordSuccess");
-    if (error) {
-      error.hidden = type !== "error";
-      error.textContent = type === "error" ? text : "";
-    }
-    if (success) {
-      success.hidden = type !== "success";
-      success.textContent = type === "success" ? text : "";
-    }
   }
 
   function openResetPassword() {
@@ -413,25 +239,18 @@
 
     if (password.length < 6) {
       setResetPasswordMessage("error", "Password must be at least 6 characters.");
-      document.getElementById("resetPassword")?.focus();
       return;
     }
-
     if (password !== confirm) {
       setResetPasswordMessage("error", "Passwords do not match.");
-      document.getElementById("resetPasswordConfirm")?.focus();
       return;
     }
-
     if (!normalizePhone(verifiedResetPhone)) {
       setResetPasswordMessage("error", "Please verify OTP again before setting a new password.");
       return;
     }
 
-    saveAccount({
-      phone: verifiedResetPhone,
-      password,
-    });
+    // TODO: POST to a real Laravel reset-password route here.
     setResetPasswordMessage("success", "Password updated successfully. You can now log in.");
 
     const loginPhone = document.getElementById("loginPhone");
@@ -444,61 +263,33 @@
     }, 800);
   }
 
-  document.querySelectorAll(".btn-login").forEach((btn) => {
-    btn.addEventListener("click", openLogin);
-  });
-
-  document.querySelectorAll(".login-register").forEach((btn) => {
-    btn.addEventListener("click", openRegister);
-  });
-
-  document.querySelectorAll(".login-forgot").forEach((btn) => {
-    btn.addEventListener("click", openOtp);
-  });
+  /* ---------- Open / close wiring ---------- */
+  document.querySelectorAll(".btn-login").forEach((b) => b.addEventListener("click", openLogin));
+  document.querySelectorAll(".login-register").forEach((b) => b.addEventListener("click", openRegister));
+  document.querySelectorAll(".login-forgot").forEach((b) => b.addEventListener("click", openOtp));
 
   document.getElementById("otpBackLogin")?.addEventListener("click", openLogin);
   document.getElementById("resetBackLogin")?.addEventListener("click", openLogin);
 
-  document.getElementById("loginModalClose")?.addEventListener("click", () => {
-    closeDialog(loginModal);
-  });
-
-  document.getElementById("registerModalClose")?.addEventListener("click", () => {
-    closeDialog(registerModal);
-  });
-
+  document.getElementById("loginModalClose")?.addEventListener("click", () => closeDialog(loginModal));
+  document.getElementById("registerModalClose")?.addEventListener("click", () => closeDialog(registerModal));
   document.getElementById("otpModalClose")?.addEventListener("click", () => {
     stopResendTimer();
     closeDialog(otpModal);
   });
+  document.getElementById("resetPasswordModalClose")?.addEventListener("click", () => closeDialog(resetPasswordModal));
 
-  document.getElementById("resetPasswordModalClose")?.addEventListener("click", () => {
-    closeDialog(resetPasswordModal);
-  });
-
-  loginModal?.addEventListener("click", (e) => {
-    if (e.target === loginModal) closeDialog(loginModal);
-  });
-
-  registerModal?.addEventListener("click", (e) => {
-    if (e.target === registerModal) closeDialog(registerModal);
-  });
-
+  loginModal?.addEventListener("click", (e) => { if (e.target === loginModal) closeDialog(loginModal); });
+  registerModal?.addEventListener("click", (e) => { if (e.target === registerModal) closeDialog(registerModal); });
   otpModal?.addEventListener("click", (e) => {
     if (e.target === otpModal) {
       stopResendTimer();
       closeDialog(otpModal);
     }
   });
+  resetPasswordModal?.addEventListener("click", (e) => { if (e.target === resetPasswordModal) closeDialog(resetPasswordModal); });
 
-  resetPasswordModal?.addEventListener("click", (e) => {
-    if (e.target === resetPasswordModal) closeDialog(resetPasswordModal);
-  });
-
-  document.getElementById("loginPhone")?.addEventListener("input", () => {
-    document.getElementById("loginPhone").setCustomValidity("");
-  });
-
+  /* ---------- Password show/hide ---------- */
   function bindPasswordToggle(btn) {
     btn.addEventListener("click", () => {
       const input = document.getElementById(btn.getAttribute("data-password-toggle")) ||
@@ -516,258 +307,18 @@
   }
 
   document.querySelectorAll("[data-password-toggle]").forEach(bindPasswordToggle);
-
   const loginToggle = document.getElementById("loginPasswordToggle");
-  if (loginToggle && !loginToggle.hasAttribute("data-password-toggle")) {
-    bindPasswordToggle(loginToggle);
-  }
+  if (loginToggle && !loginToggle.hasAttribute("data-password-toggle")) bindPasswordToggle(loginToggle);
 
-  document.getElementById("loginPassword")?.addEventListener("input", () => {
-    document.getElementById("loginPassword").setCustomValidity("");
-  });
+  document.getElementById("loginPhone")?.addEventListener("input", (e) => e.target.setCustomValidity(""));
 
-  document.getElementById("loginForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const phoneInput = document.getElementById("loginPhone");
-    const passwordInput = document.getElementById("loginPassword");
-    const account = findAccount(phoneInput?.value);
-
-    if (!account) {
-      phoneInput?.setCustomValidity("This mobile number is not registered. Please sign up first.");
-      phoneInput?.reportValidity();
-      return;
-    }
-
-    if (account.password && account.password !== passwordInput?.value) {
-      passwordInput?.setCustomValidity("Incorrect password. Please try again.");
-      passwordInput?.reportValidity();
-      return;
-    }
-
-    writeSession(account, Boolean(form.elements.remember?.checked));
-    form.reset();
-    closeDialog(loginModal);
-  });
-
-  document.getElementById("registerForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const password = document.getElementById("registerPassword")?.value || "";
-    const confirm = document.getElementById("registerConfirm")?.value || "";
-    if (password !== confirm) {
-      window.alert("Passwords do not match.");
-      document.getElementById("registerConfirm")?.focus();
-      return;
-    }
-
-    const phoneVerified = document.getElementById("registerPhoneField")?.dataset.verified === "true";
-    const emailValue = document.getElementById("registerEmail")?.value.trim() || "";
-    const emailVerified = document.getElementById("registerEmailField")?.dataset.verified === "true";
-
-    if (document.getElementById("registerPhoneVerifyBtn") && !phoneVerified) {
-      window.alert("Please verify your phone number before signing up.");
-      document.getElementById("registerPhone")?.focus();
-      return;
-    }
-
-    if (emailValue && document.getElementById("registerEmailVerifyBtn") && !emailVerified) {
-      window.alert("Please verify your email address before signing up.");
-      document.getElementById("registerEmail")?.focus();
-      return;
-    }
-
-    const account = {
-      name: document.getElementById("registerName")?.value.trim() || "",
-      phone: document.getElementById("registerPhone")?.value || "",
-      email: emailValue,
-      password,
-    };
-    saveAccount(account);
-    writeSession(account, true);
-    closeDialog(registerModal);
-  });
-
-  /* ---------- Inline phone / email OTP verification (register form) ---------- */
-  function setupRegisterContactVerification(options) {
-    const {
-      type,
-      field,
-      input,
-      verifyBtn,
-      verifiedBadge,
-      otpPanel,
-      otpInput,
-      confirmBtn,
-      demoEl,
-      msgEl,
-      validate,
-      sentLabel,
-    } = options;
-
-    if (!field || !input || !verifyBtn || !otpPanel || !otpInput || !confirmBtn) return;
-
-    let pendingCode = "";
-    let verifiedValue = "";
-
-    function setMsg(text, kind) {
-      if (!msgEl) return;
-      if (!text) {
-        msgEl.hidden = true;
-        msgEl.textContent = "";
-        msgEl.classList.remove("is-error", "is-success");
-        return;
-      }
-      msgEl.hidden = false;
-      msgEl.textContent = text;
-      msgEl.classList.toggle("is-error", kind === "error");
-      msgEl.classList.toggle("is-success", kind === "success");
-    }
-
-    function showVerifyBtn() {
-      if (field.dataset.verified === "true") return;
-      verifyBtn.hidden = false;
-    }
-
-    function markVerified() {
-      field.dataset.verified = "true";
-      verifyBtn.hidden = true;
-      if (verifiedBadge) verifiedBadge.hidden = false;
-      otpPanel.hidden = true;
-      otpInput.value = "";
-      if (demoEl) demoEl.hidden = true;
-      setMsg("", "");
-      input.readOnly = true;
-    }
-
-    function resetVerification() {
-      field.dataset.verified = "false";
-      pendingCode = "";
-      verifiedValue = "";
-      input.readOnly = false;
-      if (verifiedBadge) verifiedBadge.hidden = true;
-      otpPanel.hidden = true;
-      otpInput.value = "";
-      if (demoEl) {
-        demoEl.hidden = true;
-        demoEl.textContent = "";
-      }
-      setMsg("", "");
-      verifyBtn.hidden = true;
-      verifyBtn.disabled = false;
-      verifyBtn.textContent = "Verify";
-    }
-
-    field.addEventListener("click", showVerifyBtn);
-    field.addEventListener("focusin", showVerifyBtn);
-
-    verifyBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const value = input.value.trim();
-      const error = validate(value);
-      if (error) {
-        input.setCustomValidity(error);
-        input.reportValidity();
-        input.focus();
-        return;
-      }
-      input.setCustomValidity("");
-
-      pendingCode = generateOtp();
-      verifiedValue = value;
-      otpPanel.hidden = false;
-      otpInput.value = "";
-      setMsg("", "");
-      if (demoEl) {
-        demoEl.hidden = false;
-        demoEl.innerHTML = `${sentLabel} <strong>${pendingCode}</strong>`;
-      }
-      verifyBtn.textContent = "Resend";
-      window.requestAnimationFrame(() => otpInput.focus());
-    });
-
-    input.addEventListener("input", () => {
-      input.setCustomValidity("");
-      if (field.dataset.verified === "true" && input.value.trim() !== verifiedValue) {
-        resetVerification();
-        showVerifyBtn();
-      }
-    });
-
-    confirmBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const entered = otpInput.value.replace(/\D/g, "");
-      if (entered.length !== 6) {
-        setMsg("Enter the complete 6-digit OTP.", "error");
-        otpInput.focus();
-        return;
-      }
-      if (entered !== pendingCode) {
-        setMsg("Incorrect OTP. Please try again.", "error");
-        otpInput.focus();
-        return;
-      }
-      setMsg(`${type === "phone" ? "Phone number" : "Email"} verified successfully.`, "success");
-      markVerified();
-    });
-
-    otpInput.addEventListener("input", () => {
-      otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 6);
-      setMsg("", "");
-    });
-
-    otpInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        confirmBtn.click();
-      }
-    });
-  }
-
-  setupRegisterContactVerification({
-    type: "phone",
-    field: document.getElementById("registerPhoneField"),
-    input: document.getElementById("registerPhone"),
-    verifyBtn: document.getElementById("registerPhoneVerifyBtn"),
-    verifiedBadge: document.getElementById("registerPhoneVerified"),
-    otpPanel: document.getElementById("registerPhoneOtpPanel"),
-    otpInput: document.getElementById("registerPhoneOtpInput"),
-    confirmBtn: document.getElementById("registerPhoneOtpConfirm"),
-    demoEl: document.getElementById("registerPhoneOtpDemo"),
-    msgEl: document.getElementById("registerPhoneOtpMsg"),
-    sentLabel: "Demo OTP sent to your phone:",
-    validate(value) {
-      const digits = normalizePhone(value);
-      if (digits.length < 10) return "Enter a valid phone number (at least 10 digits).";
-      return "";
-    },
-  });
-
-  setupRegisterContactVerification({
-    type: "email",
-    field: document.getElementById("registerEmailField"),
-    input: document.getElementById("registerEmail"),
-    verifyBtn: document.getElementById("registerEmailVerifyBtn"),
-    verifiedBadge: document.getElementById("registerEmailVerified"),
-    otpPanel: document.getElementById("registerEmailOtpPanel"),
-    otpInput: document.getElementById("registerEmailOtpInput"),
-    confirmBtn: document.getElementById("registerEmailOtpConfirm"),
-    demoEl: document.getElementById("registerEmailOtpDemo"),
-    msgEl: document.getElementById("registerEmailOtpMsg"),
-    sentLabel: "Demo OTP sent to your email:",
-    validate(value) {
-      if (!value) return "Enter an email address to verify.";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email address.";
-      return "";
-    },
-  });
-
+  /* ---------- Forgot-password OTP boxes ---------- */
   document.getElementById("otpForm")?.addEventListener("submit", verifyOtp);
   document.getElementById("resetPasswordForm")?.addEventListener("submit", saveNewPassword);
 
   document.getElementById("otpResend")?.addEventListener("click", () => {
     const stored = readStoredOtp();
-    const phone = stored?.phone || resolveResetPhone();
+    const phone = stored?.phone || document.getElementById("loginPhone")?.value || "";
     if (!normalizePhone(phone)) return;
     sendOtp(phone);
     setOtpMessage("success", "A new OTP has been sent to your registered mobile number.");
@@ -782,20 +333,14 @@
       setOtpMessage("", "");
       if (digit && otpBoxList[index + 1]) otpBoxList[index + 1].focus();
     });
-
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Backspace" && !input.value && otpBoxList[index - 1]) {
-        otpBoxList[index - 1].focus();
-      }
+      if (e.key === "Backspace" && !input.value && otpBoxList[index - 1]) otpBoxList[index - 1].focus();
     });
-
     input.addEventListener("paste", (e) => {
       const pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 6);
       if (!pasted) return;
       e.preventDefault();
-      otpBoxList.forEach((box, i) => {
-        box.value = pasted[i] || "";
-      });
+      otpBoxList.forEach((box, i) => { box.value = pasted[i] || ""; });
       otpBoxList[Math.min(pasted.length, otpBoxList.length) - 1]?.focus();
     });
   });
@@ -804,3 +349,19 @@
   if (window.location.hash === "#register") openRegister();
   if (window.location.hash === "#forgot-password") openOtp();
 })();
+  /* ---------- Header profile dropdown (rendered by Blade @auth) ---------- */
+  const profile = document.querySelector(".header-profile");
+  if (profile) {
+    const btn = profile.querySelector(".header-profile-btn");
+    const menu = profile.querySelector(".header-profile-menu");
+    const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      btn.setAttribute("aria-expanded", String(opening));
+    });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".header-profile")) close(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(); btn.focus(); } });
+  }

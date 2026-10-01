@@ -152,7 +152,9 @@ class RegisterController extends Controller
     // POST /register
     public function store(Request $request)
     {
-        $request->merge(['phone' => $this->normalize('phone', (string) $request->input('phone'))]);
+     
+    
+    $request->merge(['phone' => $this->normalize('phone', (string) $request->input('phone'))]);
         if ($request->filled('email')) {
             $request->merge(['email' => $this->normalize('email', $request->input('email'))]);
         }
@@ -219,8 +221,7 @@ class RegisterController extends Controller
             'redirect' => url('/'),
         ], 201);
     }
-
-    /* ---------------- helpers ---------------- */
+ /* ---------------- helpers ---------------- */
 
     // SMS hook: plug your gateway in here later
     private function sendSms(string $phone, string $otp): void
