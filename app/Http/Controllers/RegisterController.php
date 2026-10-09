@@ -12,12 +12,10 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 class RegisterController extends Controller
 {
     // keep in sync with the rite <select> in the register modal
-    private const RITES = ['syro-malabar', 'syro-malankara', 'latin'];
 
     private const OTP_MINUTES      = 5;
     private const OTP_MAX_TRIES    = 5;
@@ -63,7 +61,7 @@ class RegisterController extends Controller
             ]);
         }
 
-        return redirect()->intended('/');
+        return redirect()->route('trading');
     }
 
     // POST /register/otp/send   { type: phone|email, value }
@@ -101,14 +99,19 @@ class RegisterController extends Controller
 
         $demo = (bool) config('services.otp_demo');
 
-        if ($type === 'email') {
-            Mail::raw(
-                "Your IBNCC verification code is {$otp}. It is valid for " . self::OTP_MINUTES . ' minutes.',
-                fn ($m) => $m->to($value)->subject('IBNCC verification code')
-            );
-        } else {
-            $this->sendSms($value, $otp);
+if ($type === 'email') {
+    // Send email OTP
+    Mail::raw(
+        "Your IBNCC verification OTP is: {$otp}",
+        function ($message) use ($value) {
+            $message->to($value)
+                ->subject('IBNCC Verification OTP');
         }
+    );
+} else {
+    // SMS provider not configured yet.
+    // In demo mode, do not call sendSms().
+}
 
         // demo mode: expose the OTP so the modal can show it (turn OFF when SMS is live)
         return response()->json(['message' => 'OTP sent'] + ($demo ? ['debug_otp' => $otp] : []));
@@ -150,89 +153,73 @@ class RegisterController extends Controller
     }
 
     // POST /register
-    public function store(Request $request)
-    {
-     
+   // POST /register
+public function store(Request $request)
+{
     
     $request->merge(['phone' => $this->normalize('phone', (string) $request->input('phone'))]);
-        if ($request->filled('email')) {
-            $request->merge(['email' => $this->normalize('email', $request->input('email'))]);
-        }
-
-        $data = $request->validate([
-            'name'     => 'required|string|max:100',
-            'parish'   => 'required|string|max:100',
-            'diocese'  => 'required|string|max:100',
-            'rite'     => ['required', Rule::in(self::RITES)],
-            'password' => 'required|string|min:6|max:64',
-            'confirm'  => 'required|same:password',
-            'phone'    => 'required|digits:10',
-            'email'    => 'nullable|email|max:100',
-        ], [
-            'confirm.same' => 'Passwords do not match.',
-            'phone.digits' => 'Enter a valid 10-digit phone number.',
-            'rite.in'      => 'Select a valid rite.',
-        ]);
-
-        $phone = $data['phone'];
-        $email = $data['email'] ?? null;
-
-        if ($this->isTaken('phone', $phone)) {
-            $this->reject('phone', 'This phone number is already registered.');
-        }
-        if ($email && $this->isTaken('email', $email)) {
-            $this->reject('email', 'This email is already registered.');
-        }
-
-        if (! Cache::get($this->verifiedKey('phone', $phone))) {
-            $this->reject('phone', 'Please verify your phone number.');
-        }
-        if ($email && ! Cache::get($this->verifiedKey('email', $email))) {
-            $this->reject('email', 'Please verify your email or leave it empty.');
-        }
-
-        $attributes = [
-            'role_id'           => Role::where('name', 'member')->value('id'),
-            'name'              => $data['name'],
-            'parish'            => $data['parish'],
-            'diocese'           => $data['diocese'],
-            'rite'              => $data['rite'],
-            'phone'             => $phone,
-            'phone_verified_at' => now(),
-            'email'             => $email,
-            'email_verified_at' => $email ? now() : null,
-            'password'          => $data['password'],   // hashed by the model cast
-            
-        ];
-
-        $guest = User::where('phone', $phone)->first();
-        $user  = $guest ? tap($guest)->update($attributes) : User::create($attributes);
-
-        Cache::forget($this->verifiedKey('phone', $phone));
-        if ($email) {
-            Cache::forget($this->verifiedKey('email', $email));
-        }
-
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        return response()->json([
-            'message'  => 'Account created.',
-            'redirect' => url('/'),
-        ], 201);
+    if ($request->filled('email')) {
+        $request->merge(['email' => $this->normalize('email', $request->input('email'))]);
     }
- /* ---------------- helpers ---------------- */
 
-    // SMS hook: plug your gateway in here later
-    private function sendSms(string $phone, string $otp): void
-    {
-        if (config('services.otp_demo')) {
-            Log::info("DEMO OTP for {$phone}: {$otp}");
-            return;
-        }
+    $data = $request->validate([
+        'name'      => 'required|string|max:100',
+        'parish_id' => 'required|exists:parishes,id',
+        'password'  => 'required|string|min:6|max:64',
+        'confirm'   => 'required|same:password',
+        'phone'     => 'required|digits:10',
+        'email'     => 'nullable|email|max:100',
+    ], [
+        'confirm.same'       => 'Passwords do not match.',
+        'phone.digits'       => 'Enter a valid 10-digit phone number.',
+        'parish_id.required' => 'Select your rite, diocese, forane and parish.',
+        'parish_id.exists'   => 'Select a valid parish.',
+    ]);
 
-        // TODO: call SMS gateway here
+    $phone = $data['phone'];
+    $email = $data['email'] ?? null;
+
+    if ($this->isTaken('phone', $phone)) {
+        $this->reject('phone', 'This phone number is already registered.');
     }
+    if ($email && $this->isTaken('email', $email)) {
+        $this->reject('email', 'This email is already registered.');
+    }
+
+    if (! Cache::get($this->verifiedKey('phone', $phone))) {
+        $this->reject('phone', 'Please verify your phone number.');
+    }
+    if ($email && ! Cache::get($this->verifiedKey('email', $email))) {
+        $this->reject('email', 'Please verify your email or leave it empty.');
+    }
+
+    $attributes = [
+        'role_id'           => Role::where('name', 'member')->value('id'),
+        'name'              => $data['name'],
+        'parish_id'         => $data['parish_id'],
+        'phone'             => $phone,
+        'phone_verified_at' => now(),
+        'email'             => $email,
+        'email_verified_at' => $email ? now() : null,
+        'password'          => $data['password'],   // hashed by the model cast
+    ];
+
+    $guest = User::where('phone', $phone)->first();
+    $user  = $guest ? tap($guest)->update($attributes) : User::create($attributes);
+
+    Cache::forget($this->verifiedKey('phone', $phone));
+    if ($email) {
+        Cache::forget($this->verifiedKey('email', $email));
+    }
+
+    Auth::login($user);
+    $request->session()->regenerate();
+
+    return response()->json([
+        'message'  => 'Account created.',
+        'redirect' => url('/'),
+    ], 201);
+}
 
     private function normalize(string $type, string $value): string
     {
@@ -275,4 +262,11 @@ class RegisterController extends Controller
     {
         throw ValidationException::withMessages([$field => $message]);
     }
+    public function logout(Request $request)
+{
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+    return redirect('/');
+}
 }

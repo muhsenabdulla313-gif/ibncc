@@ -61,7 +61,7 @@
         <a href="#home" class="nav-link active" data-section="home"><span>Home</span></a>
         <a href="#about" class="nav-link" data-section="about"><span>About</span></a>
         <a href="#events" class="nav-link" data-section="events"><span>Events</span></a>
-        <a href="networking.html" class="nav-link" data-section="networking"><span>Networking</span></a>
+        <a href="{{route('network')}}" class="nav-link" data-section="networking"><span>Networking</span></a>
         <a href="{{route('trading')}}" class="nav-link" data-section="trading"><span>Trading</span></a>
       </nav>
 

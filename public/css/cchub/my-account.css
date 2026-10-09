@@ -1027,3 +1027,19 @@
         }
       }
     
+.verify-row { display: flex; align-items: center; gap: 8px; }
+.verify-row input { flex: 1; }
+.verify-btn, .verify-otp-confirm {
+  padding: 8px 14px; border: 1px solid #d97706; border-radius: 6px;
+  background: #fff; color: #d97706; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.verify-btn:hover, .verify-otp-confirm:hover { background: #d97706; color: #fff; }
+.verified-badge { color: #15803d; font-weight: 600; white-space: nowrap; }
+.verify-otp { margin-top: 8px; padding: 10px; border: 1px dashed #e8a31a; border-radius: 8px; }
+.verify-otp-hint { margin: 0 0 6px; font-size: .85rem; }
+.verify-otp-row { display: flex; gap: 8px; }
+.verify-otp-row input { flex: 1; }
+.verify-otp-demo { margin: 6px 0 0; font-weight: 600; color: #b45309; }
+.verify-otp-msg { margin: 6px 0 0; font-size: .85rem; }
+.verify-btn[hidden], .verified-badge[hidden], .verify-otp[hidden],
+.verify-otp-demo[hidden], .verify-otp-msg[hidden] { display: none !important; }
