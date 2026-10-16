@@ -1,160 +1,199 @@
 {{-- resources/views/members/show.blade.php --}}
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="csrf-token" content="{{ csrf_token() }}" />
-  <title>{{ $user->name }} — Member Profile | CC Hub</title>
-  <meta name="description" content="View {{ $user->name }}'s public profile on CC Hub — send a message and discover similar members." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="{{ asset('css/style.css') }}" />
-  <link rel="stylesheet" href="{{ asset('css/cchub/ch-styles.css') }}" />
+@extends('layouts.network')
+
+@php
+  $hiddenSections = $hiddenSections ?? ($p->hidden_sections ?? []);
+  $opts = $opts ?? [];
+  $o = fn($k) => $opts[$k] ?? [];
+  $jobsByCategory = $jobsByCategory ?? [];
+  $conversations = $conversations ?? collect();
+  $adminMessages = $adminMessages ?? collect();
+
+  // NEW defaults
+  $isSaved = $isSaved ?? false;
+  $isBlocked = $isBlocked ?? false;
+  $savedIds = $savedIds ?? [];
+  $shareList = $shareList ?? ($similar ?? collect());
+
+  $unreadAdmin = $adminMessages->whereNull('read_at')->count();
+  $unreadChats = $conversations->where('unread', true)->count();
+  $show = fn($key) => $isOwner || !in_array($key, $hiddenSections, true);
+  $noImg = asset('assets/images/no-image.avif');
+@endphp
+{{-- ===================== HEAD / BODY SETTINGS ===================== --}}
+@section('title')
+  {{ $user->name }} — {{ $isOwner ? 'My Profile' : 'Member Profile' }} | CC Hub
+@endsection
+
+@section('meta')
+  <meta name="description"
+    content="View {{ $user->name }}'s profile on CC Hub — connect, collaborate, and grow together." />
+@endsection
+
+@section('page_css')
   <link rel="stylesheet" href="{{ asset('css/cchub/ch-profile.css') }}" />
-  <link rel="stylesheet" href="{{ asset('css/cchub/ch-other-profile.css') }}" />
-</head>
-<body class="profile-page other-profile-page page-profile">
+  @if ($isOwner)
+    <link rel="stylesheet" href="{{ asset('css/cchub/ch-profile-page.css') }}" />
+  @else
+    <link rel="stylesheet" href="{{ asset('css/cchub/ch-other-profile.css') }}" />
+  @endif
+@endsection
 
-  {{-- ================= HEADER ================= --}}
-  <header class="site-header" id="site-header">
-    <div class="header-inner">
-      <a href="{{ url('/') }}#home" class="brand" aria-label="IBNCC Home">
-        <span class="brand-text">
-          <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC logo" class="brand-logo" width="52" height="52" />
-          <span class="brand-tagline">AN INITIATIVE OF CATHOLIC CONGRESS</span>
-        </span>
-      </a>
+@section('body_class')
+  profile-page {{ $isOwner ? '' : 'other-profile-page' }} page-profile
+@endsection
 
-      <nav class="nav-desktop" aria-label="Primary">
-        <a href="{{ url('/') }}#home" class="nav-link" data-section="home"><span>Home</span></a>
-        <a href="{{ url('/') }}#about" class="nav-link" data-section="about"><span>About</span></a>
-        <a href="{{ url('/') }}#events" class="nav-link" data-section="events"><span>Events</span></a>
-        <a href="{{ url('networking') }}" class="nav-link" data-section="networking"><span>Networking</span></a>
-        <a href="{{ url('ch-trading') }}" class="nav-link" data-section="trading"><span>Trading</span></a>
-      </nav>
+@section('body_attrs')
+  data-owner="{{ $isOwner ? '1' : '0' }}" data-update-url="{{ $isOwner ? route('profile.update') : '' }}"
+@endsection
 
-      <div class="header-actions">
-        <a href="{{ url('event-details') }}" class="header-notice" aria-label="Upcoming event announcement">
-          <span class="header-notice-icon" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
-          <span class="header-notice-track">
-            <span class="header-notice-marquee">
-              <span class="header-notice-text">{{ $notice }}</span>
-              <span class="header-notice-text" aria-hidden="true">{{ $notice }}</span>
-            </span>
-          </span>
-        </a>
+{{-- No nav item highlighted on the profile page --}}
+@section('nav_active', 'none')
 
-        @auth
-          <div class="header-profile">
-            <button type="button" class="header-profile-btn" aria-haspopup="menu" aria-expanded="false"
-                    aria-label="Account menu for {{ auth()->user()->name }}">
-              <span class="header-profile-initial" aria-hidden="true">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</span>
-            </button>
-            <div class="header-profile-menu" role="menu" hidden>
-              <p class="header-profile-name">{{ auth()->user()->name }}</p>
-              <a href="{{ route('members.show', auth()->user()) }}" class="header-profile-item" role="menuitem">
-                <i class="fa-regular fa-user" aria-hidden="true"></i> My Account
-              </a>
-              <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="header-profile-item" role="menuitem">
-                  <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout
-                </button>
-              </form>
-            </div>
-          </div>
-        @else
-          <a href="#login" class="btn-login">Login</a>
-        @endauth
+@section('no_login_modals')
+@endsection
 
-        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Open menu"
-                aria-expanded="false" aria-controls="mobile-menu">
-          <span class="menu-bar"></span><span class="menu-bar"></span><span class="menu-bar"></span>
-        </button>
-      </div>
-    </div>
-
-    <nav class="nav-mobile" id="mobile-menu" aria-label="Mobile" hidden>
-      <div class="nav-mobile-card">
-        <a href="{{ url('event-details') }}" class="header-notice header-notice--mobile" aria-label="Upcoming event announcement">
-          <span class="header-notice-icon" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
-          <span class="header-notice-track">
-            <span class="header-notice-marquee">
-              <span class="header-notice-text">{{ $notice }}</span>
-              <span class="header-notice-text" aria-hidden="true">{{ $notice }}</span>
-            </span>
-          </span>
-        </a>
-        <div class="nav-mobile-list">
-          @foreach ([
-            ['url' => url('/').'#home',        'section' => 'home',       'icon' => 'fa-house',                'title' => 'Home',       'sub' => 'Welcome to IBNCC'],
-            ['url' => url('/').'#about',       'section' => 'about',      'icon' => 'fa-circle-info',          'title' => 'About',      'sub' => 'Know more about us'],
-            ['url' => url('/').'#events',      'section' => 'events',     'icon' => 'fa-calendar-days',        'title' => 'Events',     'sub' => 'Upcoming gatherings'],
-            ['url' => url('networking'),       'section' => 'networking', 'icon' => 'fa-handshake',            'title' => 'Networking', 'sub' => 'Build global connections'],
-            ['url' => url('ch-trading'),       'section' => 'trading',    'icon' => 'fa-arrow-right-arrow-left','title' => 'Trading',   'sub' => 'Collaborate and grow'],
-          ] as $item)
-            <a href="{{ $item['url'] }}" class="nav-link" data-section="{{ $item['section'] }}">
-              <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid {{ $item['icon'] }}"></i></span>
-              <span class="nav-mobile-copy"><strong>{{ $item['title'] }}</strong><em>{{ $item['sub'] }}</em></span>
-              <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-            </a>
-          @endforeach
-        </div>
-      </div>
-    </nav>
-  </header>
-
-  {{-- ================= APP NAV + SHARE ================= --}}
+@section('after_header')
   <nav class="app-nav" aria-label="Profile navigation">
     <div class="app-nav-inner">
-      <a href="#save-profile" class="app-nav-item" aria-label="Save Profile" aria-haspopup="menu" aria-expanded="false">
-        <span class="app-nav-icon app-nav-icon--save"><i class="fa-regular fa-bookmark" aria-hidden="true"></i></span>
-        <span class="app-nav-label">Save Profile</span>
-      </a>
-      <a href="#block-profile" class="app-nav-item" aria-label="Block Profile" aria-haspopup="menu" aria-expanded="false">
-        <span class="app-nav-icon app-nav-icon--block"><i class="fa-solid fa-ban" aria-hidden="true"></i></span>
-        <span class="app-nav-label">Block Profile</span>
-      </a>
+      @if ($isOwner)
+        <a href="#messages" class="app-nav-item" id="openMessagesBtn" aria-label="Messages, {{ $unreadChats }} unread"
+          aria-controls="messagesPanel" aria-expanded="false" aria-haspopup="menu">
+          <span class="app-nav-icon app-nav-icon--messages">
+            <i class="fa-regular fa-comments" aria-hidden="true"></i>
+            @if ($unreadChats > 0)
+              <span class="app-nav-badge" aria-hidden="true">{{ $unreadChats }}</span>
+            @endif
+          </span>
+          <span class="app-nav-label">Messages</span>
+        </a>
+        <a href="#admin-messages" class="app-nav-item" id="openAdminMessagesBtn"
+          aria-label="Admin Messages, {{ $unreadAdmin }} unread" aria-controls="adminMessagesDropdown"
+          aria-haspopup="dialog" aria-expanded="false">
+          <span class="app-nav-icon app-nav-icon--admin">
+            <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i>
+            @if ($unreadAdmin > 0)
+              <span class="app-nav-badge" aria-hidden="true">{{ $unreadAdmin }}</span>
+            @endif
+          </span>
+          <span class="app-nav-label">Admin Messages</span>
+        </a>
+      @else
+        <a href="#save-profile" role="button" class="app-nav-item" data-save-profile
+          data-url="{{ route('members.save', $user->uuid) }}" data-saved="{{ $isSaved ? 1 : 0 }}"
+          aria-pressed="{{ $isSaved ? 'true' : 'false' }}" aria-label="Save Profile">
+          <span class="app-nav-icon app-nav-icon--save">
+            <i class="{{ $isSaved ? 'fa-solid' : 'fa-regular' }} fa-bookmark" aria-hidden="true"></i>
+          </span>
+          <span class="app-nav-label">{{ $isSaved ? 'Saved' : 'Save Profile' }}</span>
+        </a>
+        <a href="#block-profile" role="button" class="app-nav-item" data-block-profile
+          data-url="{{ route('members.block', $user->uuid) }}" data-blocked="{{ $isBlocked ? 1 : 0 }}"
+          aria-label="Block Profile">
+          <span class="app-nav-icon app-nav-icon--block"><i class="fa-solid fa-ban" aria-hidden="true"></i></span>
+          <span class="app-nav-label">{{ $isBlocked ? 'Unblock' : 'Block Profile' }}</span>
+        </a>
+      @endif
+
       <a href="#share-profile" class="app-nav-item" id="openShareProfileBtn" aria-label="Share Profile"
-         aria-controls="shareProfileDropdown" aria-haspopup="dialog" aria-expanded="false">
-        <span class="app-nav-icon app-nav-icon--share"><i class="fa-solid fa-share-from-square" aria-hidden="true"></i></span>
+        aria-controls="shareProfileDropdown" aria-haspopup="dialog" aria-expanded="false">
+        <span class="app-nav-icon app-nav-icon--share">
+          <i class="fa-solid fa-share-from-square" aria-hidden="true"></i>
+        </span>
         <span class="app-nav-label">Share Profile</span>
       </a>
-      @auth
-        <a href="{{ route('members.show', auth()->user()) }}" class="app-nav-item" aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
-          <span class="app-nav-icon app-nav-icon--profile"><i class="fa-regular fa-user" aria-hidden="true"></i></span>
+
+      @if ($isOwner)
+        <a href="{{ route('members.show', auth()->user()->uuid) }}" class="app-nav-item is-active" aria-current="page"
+          aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
+          <span class="app-nav-avatar">
+            <img src="{{ $p->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="52"
+              height="52" />
+          </span>
+          <span class="app-nav-label">Profile</span>
+        </a>
+      @else
+        <a href="{{ route('members.show', auth()->user()->uuid) }}" class="app-nav-item" aria-label="Your profile"
+          aria-haspopup="menu" aria-expanded="false">
+          <span class="app-nav-icon app-nav-icon--profile">
+            <i class="fa-regular fa-user" aria-hidden="true"></i>
+          </span>
           <span class="app-nav-label">Your Profile</span>
         </a>
-      @endauth
+      @endif
     </div>
 
     <div class="app-nav-dropdown" id="appNavDropdown" hidden role="menu" aria-label="Account menu">
-      <a href="{{ url('activity') }}" class="app-nav-dropdown-item" role="menuitem" data-nav-action="activity">
+      <a href="{{ route('activity') }}" class="app-nav-dropdown-item" role="menuitem">
         <span class="app-nav-dropdown-icon" aria-hidden="true"><i class="fa-solid fa-clock-rotate-left"></i></span>
         <span>Activity</span>
       </a>
-      <form method="POST" action="{{ route('logout') }}" style="margin:0">
-        @csrf
-        <button type="submit" class="app-nav-dropdown-item app-nav-dropdown-item--logout" role="menuitem" data-nav-action="logout">
-          <span class="app-nav-dropdown-icon" aria-hidden="true"><i class="fa-solid fa-right-from-bracket"></i></span>
-          <span>Logout</span>
-        </button>
-      </form>
+      <a href="#logout" class="app-nav-dropdown-item app-nav-dropdown-item--logout" role="menuitem"
+        data-nav-action="logout-server" onclick="event.preventDefault();document.getElementById('logoutForm').submit();">
+        <span class="app-nav-dropdown-icon" aria-hidden="true"><i class="fa-solid fa-right-from-bracket"></i></span>
+        <span>Logout</span>
+      </a>
+      <form id="logoutForm" method="POST" action="{{ route('logout') }}" hidden>@csrf</form>
     </div>
 
-    <div class="share-profile-dropdown" id="shareProfileDropdown" hidden role="dialog"
-         aria-labelledby="shareProfileTitle"
-         data-profile-path="{{ $profileUrl }}" data-profile-name="{{ $user->name }}">
+    @if ($isOwner)
+      {{-- Admin messages dropdown --}}
+      <div class="admin-messages-dropdown" id="adminMessagesDropdown" hidden role="dialog"
+        aria-labelledby="adminMessagesTitle">
+        <header class="admin-messages-header">
+          <div class="admin-messages-heading">
+            <span class="admin-messages-heading-icon" aria-hidden="true">
+              <i class="fa-solid fa-shield-halved"></i>
+            </span>
+            <div>
+              <h2 id="adminMessagesTitle">Admin Messages</h2>
+              <p class="admin-messages-subtitle">Official updates from IBNCC</p>
+            </div>
+          </div>
+          <span class="admin-messages-count" id="adminMessagesCount">{{ $unreadAdmin }} new</span>
+        </header>
+
+        <ul class="admin-messages-list" id="adminMessagesList">
+          @forelse ($adminMessages as $am)
+            <li class="admin-message-item {{ $am->read_at ? '' : 'is-unread' }}">
+              <div class="admin-message-avatar" aria-hidden="true">
+                <i class="fa-solid fa-user-shield"></i>
+              </div>
+              <div class="admin-message-body">
+                <div class="admin-message-meta">
+                  <strong class="admin-message-sender">IBNCC Admin</strong>
+                  <time
+                    datetime="{{ $am->created_at->toIso8601String() }}">{{ $am->created_at->diffForHumans(null, true, true) }}
+                    ago</time>
+                </div>
+                <p class="admin-message-subject">{{ $am->subject }}</p>
+                <p class="admin-message-text">{{ $am->body }}</p>
+              </div>
+            </li>
+          @empty
+            <li class="admin-message-item">
+              <div class="admin-message-body">
+                <p class="admin-message-text">No admin messages yet.</p>
+              </div>
+            </li>
+          @endforelse
+        </ul>
+      </div>
+    @endif
+
+    {{-- Share profile dropdown --}}
+    <div class="share-profile-dropdown" id="shareProfileDropdown" hidden role="dialog" aria-labelledby="shareProfileTitle"
+      data-profile-path="{{ $profileUrl }}" data-profile-name="{{ $user->name }}" data-profile-uuid="{{ $user->uuid }}">
       <header class="share-profile-header">
         <div class="share-profile-heading">
-          <span class="share-profile-heading-icon" aria-hidden="true"><i class="fa-solid fa-share-nodes"></i></span>
+          <span class="share-profile-heading-icon" aria-hidden="true">
+            <i class="fa-solid fa-share-nodes"></i>
+          </span>
           <div>
             <h2 id="shareProfileTitle">Share Profile</h2>
-            <p class="share-profile-subtitle">Copy the link or find a saved profile</p>
+            <p class="share-profile-subtitle">
+              Copy the link or find a saved profile
+            </p>
           </div>
         </div>
       </header>
@@ -164,11 +203,14 @@
           <i class="fa-solid fa-link" aria-hidden="true"></i>
           <span id="shareProfileLinkText">{{ $profileUrl }}</span>
         </a>
-        <button type="button" class="share-profile-copy" id="shareProfileCopyBtn" aria-label="Copy profile link" title="Copy link">
+        <button type="button" class="share-profile-copy" id="shareProfileCopyBtn" aria-label="Copy profile link"
+          title="Copy link">
           <i class="fa-regular fa-copy" aria-hidden="true"></i>
         </button>
       </div>
-      <p class="share-profile-copy-status" id="shareProfileCopyStatus" hidden aria-live="polite">Link copied</p>
+      <p class="share-profile-copy-status" id="shareProfileCopyStatus" hidden aria-live="polite">
+        Link copied
+      </p>
 
       <div class="share-profile-search">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
@@ -177,212 +219,525 @@
       </div>
 
       <ul class="share-profile-results" id="shareProfileResults" role="listbox" aria-label="Saved profiles">
-        @foreach ($similar as $m)
-          <li class="share-profile-result" role="option" aria-selected="false"
-              data-name="{{ $m->name }}" data-role="{{ $m->profile->job?->name }}">
-            <img src="{{ $m->profile->photo_url }}" alt="" width="36" height="36" />
+        @foreach ($shareList as $m)
+          @php $isSv = in_array($m->id, $savedIds, true); @endphp
+          <li class="share-profile-result" role="option" aria-selected="false" data-uuid="{{ $m->uuid }}">
+            <img src="{{ $m->profile?->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="36"
+              height="36" />
             <span class="share-profile-result-copy">
               <strong>{{ $m->name }}</strong>
-              <em>{{ $m->profile->job?->name }}@if($m->presentAddress?->district?->name) · {{ $m->presentAddress?->district?->name }}@endif</em>
+              <em>{{ $m->profile?->job?->name ?: 'Member' }}@if ($m->presentAddress?->district?->name) ·
+              {{ $m->presentAddress->district->name }}@endif @if ($isSv) · <i class="fa-solid fa-bookmark"
+                aria-hidden="true"></i> Saved @endif</em>
             </span>
             <button type="button" class="share-profile-send" hidden>Send</button>
           </li>
         @endforeach
       </ul>
-      <p class="share-profile-empty" id="shareProfileEmpty" hidden>No saved profiles match your search.</p>
+      <p class="share-profile-empty" id="shareProfileEmpty" hidden>
+        No saved profiles match your search.
+      </p>
     </div>
   </nav>
+@endsection
 
-  {{-- ================= MAIN ================= --}}
+{{-- ===================== MAIN PAGE CONTENT ===================== --}}
+@section('page')
   <main class="profile-main">
-
-    {{-- Banner --}}
     <section class="profile-banner-card" aria-labelledby="profile-name">
       <div class="profile-cover">
-        <img src="{{ $p->cover_url }}" alt="Cover photo" />
+        <img id="profileCoverImage" src="{{ $p->cover_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'"
+          alt="Cover photo of {{ $user->name }}" />
+        @if ($isOwner)
+          <button type="button" class="profile-image-edit profile-image-edit--cover" id="editCoverImageBtn"
+            aria-label="Change cover image" title="Change cover image">
+            <i class="fa-solid fa-pen" aria-hidden="true"></i>
+          </button>
+          <input type="file" id="coverImageInput" class="profile-image-file-input" accept="image/*" tabindex="-1"
+            aria-hidden="true" />
+        @endif
       </div>
 
       <div class="profile-identity">
         <div class="profile-photo-wrap">
-          <img class="profile-photo" src="{{ $p->photo_url }}"
-               alt="Portrait of {{ $user->name }}" width="120" height="120" />
+          <img class="profile-photo" id="profilePhotoImage" src="{{ $p->photo_url }}"
+            onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="Portrait of {{ $user->name }}" width="120"
+            height="120" />
+          @if ($isOwner)
+            <button type="button" class="profile-image-edit profile-image-edit--photo" id="editProfilePhotoBtn"
+              aria-label="Change profile photo" title="Change profile photo">
+              <i class="fa-solid fa-pen" aria-hidden="true"></i>
+            </button>
+            <input type="file" id="profilePhotoInput" class="profile-image-file-input" accept="image/*" tabindex="-1"
+              aria-hidden="true" />
+          @endif
         </div>
 
         <div class="profile-identity-body">
           <h1 id="profile-name" class="profile-display-name">
             {{ $user->name }}
-            @if ($user->phone_verified_at)
+            @if ($user->email_verified_at)
               <i class="fa-solid fa-shield-halved" title="Verified member" aria-label="Verified member"></i>
             @endif
           </h1>
-          @if ($p->job?->name)<p class="profile-profession">{{ $p->job?->name }}</p>@endif
-          @if ($p->about)<p class="profile-about">{{ $p->about }}</p>@endif
+          <p class="profile-profession">{{ $p->job?->name ?: 'Profession not added yet' }}</p>
+          <p class="profile-about">
+            {{ $p->about ?: "This member hasn't added a bio yet." }}
+          </p>
 
           <ul class="profile-meta-pills">
-            @if ($present?->district?->name || $present?->state?->name)
-              <li><i class="fa-solid fa-location-dot" aria-hidden="true"></i>
-                {{ collect([$present?->district?->name, $present?->state?->name])->filter()->implode(', ') }}</li>
-            @endif
-            <li><i class="fa-solid fa-church" aria-hidden="true"></i> {{ $user->diocese_name }} Diocese</li>
-            <li><i class="fa-regular fa-calendar" aria-hidden="true"></i> Member since {{ $user->created_at->format('M Y') }}</li>
+            <li>
+              <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+              {{ collect([$present?->district?->name, $present?->state?->name])->filter()->implode(', ') ?: 'Location not added yet' }}
+            </li>
+            <li>
+              <i class="fa-solid fa-church" aria-hidden="true"></i>
+              {{ $user->diocese_name ? $user->diocese_name . ' Diocese' : 'Diocese not added yet' }}
+            </li>
+            <li>
+              <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+              Member since {{ $user->created_at->format('M Y') }}
+            </li>
           </ul>
         </div>
       </div>
     </section>
 
     <div class="profile-details-row">
-
-      {{-- Details accordion --}}
       <section class="profile-panel" aria-labelledby="profile-details-heading">
         <header class="profile-panel-header">
-          <h2 id="profile-details-heading"><i class="fa-regular fa-user" aria-hidden="true"></i> Profile Details</h2>
+          <h2 id="profile-details-heading">
+            <i class="fa-regular fa-user" aria-hidden="true"></i>
+            Profile Details
+          </h2>
         </header>
 
         <div class="profile-accordion" data-accordion>
 
-          {{-- Church --}}
-          <details class="profile-detail-item">
-            <summary>
-              <span class="detail-left">
-                <span class="detail-icon"><i class="fa-solid fa-church" aria-hidden="true"></i></span>
-                <span class="detail-label">Church Details</span>
-              </span>
-              <span class="detail-actions"><span class="detail-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span></span>
-            </summary>
-            <div class="detail-content">
-              <dl class="detail-grid">
-                <div><dt>Rite</dt><dd>{{ $user->rite_name }}</dd></div>
-                <div><dt>Diocese</dt><dd>{{ $user->diocese_name }}</dd></div>
-                <div><dt>Forane</dt><dd>{{ $user->forane_name ?: '—' }}</dd></div>
-                <div><dt>Parish</dt><dd>{{ $user->parish?->name ?: '—' }}</dd></div>
-              </dl>
-            </div>
-          </details>
-
-          {{-- Personal: DOB and blood group only for the owner --}}
-          <details class="profile-detail-item">
-            <summary>
-              <span class="detail-left">
-                <span class="detail-icon"><i class="fa-regular fa-id-card" aria-hidden="true"></i></span>
-                <span class="detail-label">Personal Details</span>
-              </span>
-              <span class="detail-actions"><span class="detail-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span></span>
-            </summary>
-            <div class="detail-content">
-              <dl class="detail-grid">
-                <div><dt>Full Name</dt><dd>{{ $user->name }}</dd></div>
-                <div><dt>Gender</dt><dd>{{ $p->gender ?: '—' }}</dd></div>
-                @if ($isOwner)
-                  <div><dt>Date of Birth</dt><dd>{{ $p->dob ? $p->dob->format('j F Y') : '—' }}</dd></div>
-                  <div><dt>Blood Group</dt><dd>{{ $p->blood_group ?: '—' }}</dd></div>
-                @endif
-              </dl>
-            </div>
-          </details>
-
-          {{-- Contact: logged-in members only --}}
-          <details class="profile-detail-item">
-            <summary>
-              <span class="detail-left">
-                <span class="detail-icon"><i class="fa-solid fa-address-book" aria-hidden="true"></i></span>
-                <span class="detail-label">Contact Information</span>
-              </span>
-              <span class="detail-actions"><span class="detail-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span></span>
-            </summary>
-            <div class="detail-content">
-              @auth
+          {{-- ---------- Church Details ---------- --}}
+          @if ($show('church'))
+            <details class="profile-detail-item" data-section="church">
+              <summary>
+                <span class="detail-left">
+                  <span class="detail-icon"><i class="fa-solid fa-church" aria-hidden="true"></i></span>
+                  <span class="detail-label">Church Details</span>
+                </span>
+                @include('members._detail-actions', ['label' => 'Church Details', 'key' => 'church'])
+              </summary>
+              <div class="detail-content">
                 <dl class="detail-grid">
-                  <div><dt>Mobile</dt><dd>+91 {{ $user->phone }}</dd></div>
-                  <div><dt>Email</dt><dd>{{ $user->email ?: '—' }}</dd></div>
-                  <div><dt>WhatsApp</dt><dd>{{ $p->whatsapp ? '+91 '.$p->whatsapp : '—' }}</dd></div>
-                  <div><dt>Preferred Contact</dt><dd>{{ $p->preferred_contact ? ucfirst($p->preferred_contact) : '—' }}</dd></div>
+                  <div>
+                    <dt>Rite</dt>
+                    <dd>{{ $user->rite_name ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Diocese</dt>
+                    <dd>{{ $user->diocese_name ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Forane</dt>
+                    <dd>{{ $user->forane_name ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Parish</dt>
+                    <dd>{{ $user->parish?->name ?: 'Not provided' }}</dd>
+                  </div>
                 </dl>
-              @else
-                <p><a href="#login" class="btn-login">Login</a> to view contact details.</p>
-              @endauth
-            </div>
-          </details>
+                @if ($isOwner)
+                  <form class="detail-edit-form" data-section="church" hidden>
+                    <div class="detail-edit-grid">
+                      @include('members._edit-field', ['idx' => 0, 'field' => 'rite', 'label' => 'Rite', 'value' => $user->rite_name, 'options' => $o('rites')])
+                      @include('members._edit-field', ['idx' => 1, 'field' => 'diocese', 'label' => 'Diocese', 'value' => $user->diocese_name, 'options' => $o('dioceses')])
+                      @include('members._edit-field', ['idx' => 2, 'field' => 'forane', 'label' => 'Forane', 'value' => $user->forane_name, 'options' => $o('foranes')])
+                      @include('members._edit-field', ['idx' => 3, 'field' => 'parish', 'label' => 'Parish', 'value' => $user->parish?->name, 'options' => $o('parishes')])
+                    </div>
+                    <div class="detail-edit-actions">
+                      <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
+                      <button type="submit" class="sidebar-btn-primary">Save</button>
+                    </div>
+                  </form>
+                @endif
+              </div>
+            </details>
+          @endif
 
-          {{-- Addresses: owner only --}}
+          {{-- ---------- Personal Details ---------- --}}
+          @if ($show('personal'))
+            <details class="profile-detail-item" data-section="personal">
+              <summary>
+                <span class="detail-left">
+                  <span class="detail-icon"><i class="fa-regular fa-id-card" aria-hidden="true"></i></span>
+                  <span class="detail-label">Personal Details</span>
+                </span>
+                @include('members._detail-actions', ['label' => 'Personal Details', 'key' => 'personal'])
+              </summary>
+              <div class="detail-content">
+                <dl class="detail-grid">
+                  <div>
+                    <dt>Full Name</dt>
+                    <dd>{{ $user->name }}</dd>
+                  </div>
+                  @if ($isOwner)
+                    <div>
+                      <dt>Date of Birth</dt>
+                      <dd>{{ $p->dob ? $p->dob->format('j F Y') : 'Not provided' }}</dd>
+                    </div>
+                  @endif
+                  <div>
+                    <dt>Gender</dt>
+                    <dd>{{ $p->gender ?: 'Not provided' }}</dd>
+                  </div>
+                  @if ($isOwner)
+                    <div>
+                      <dt>Blood Group</dt>
+                      <dd>{{ $p->blood_group ?: 'Not provided' }}</dd>
+                    </div>
+                  @endif
+                </dl>
+                @if ($isOwner)
+                  <form class="detail-edit-form" data-section="personal" hidden>
+                    <div class="detail-edit-grid">
+                      @include('members._edit-field', ['idx' => 0, 'field' => 'name', 'label' => 'Full Name', 'value' => $user->name])
+                      @include('members._edit-field', ['idx' => 1, 'field' => 'dob', 'label' => 'Date of Birth', 'value' => $p->dob?->format('j F Y')])
+                      @include('members._edit-field', ['idx' => 2, 'field' => 'gender', 'label' => 'Gender', 'value' => $p->gender, 'options' => $o('genders') ?: ['Male', 'Female', 'Other', 'Prefer not to say']])
+                      @include('members._edit-field', ['idx' => 3, 'field' => 'blood_group', 'label' => 'Blood Group', 'value' => $p->blood_group, 'options' => $o('blood_groups') ?: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']])
+                    </div>
+                    <div class="detail-edit-actions">
+                      <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
+                      <button type="submit" class="sidebar-btn-primary">Save</button>
+                    </div>
+                  </form>
+                @endif
+              </div>
+            </details>
+          @endif
+
+          {{-- ---------- Contact Information ---------- --}}
+          @if ($show('contact'))
+            <details class="profile-detail-item" data-section="contact">
+              <summary>
+                <span class="detail-left">
+                  <span class="detail-icon"><i class="fa-solid fa-address-book" aria-hidden="true"></i></span>
+                  <span class="detail-label">Contact Information</span>
+                </span>
+                @include('members._detail-actions', ['label' => 'Contact Information', 'key' => 'contact'])
+              </summary>
+              <div class="detail-content">
+                <dl class="detail-grid">
+                  <div>
+                    <dt>Mobile</dt>
+                    <dd>+91 {{ $user->phone }}</dd>
+                  </div>
+                  <div>
+                    <dt>Email</dt>
+                    <dd>{{ $user->email ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>WhatsApp</dt>
+                    <dd>{{ $p->whatsapp ? '+91 ' . $p->whatsapp : 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Preferred Contact</dt>
+                    <dd>{{ $p->preferred_contact ? ucfirst($p->preferred_contact) : 'Not provided' }}</dd>
+                  </div>
+                </dl>
+                @if ($isOwner)
+                  <form class="detail-edit-form" data-section="contact" hidden>
+                    <div class="detail-edit-grid">
+                      @include('members._edit-field', ['idx' => 0, 'field' => 'phone', 'label' => 'Mobile', 'type' => 'tel', 'value' => $user->phone])
+
+                      {{-- Email: the only field that needs verification --}}
+                      <div class="verify-wrap" data-email-verify data-original="{{ $user->email }}"
+                        data-verified="{{ $user->email_verified_at ? 1 : 0 }}">
+                        @include('members._edit-field', ['idx' => 1, 'field' => 'email', 'label' => 'Email', 'type' => 'email', 'value' => $user->email])
+                        <span class="verified-badge" @unless ($user->email_verified_at) hidden @endunless>
+                          <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Verified
+                        </span>
+                        <button type="button" class="verify-btn" data-verify="email"
+                          @if ($user->email_verified_at) hidden @endif>Verify</button>
+                      </div>
+
+                      @include('members._edit-field', ['idx' => 2, 'field' => 'whatsapp', 'label' => 'WhatsApp', 'type' => 'tel', 'value' => $p->whatsapp])
+                      @include('members._edit-field', ['idx' => 3, 'field' => 'preferred_contact', 'label' => 'Preferred Contact', 'value' => $p->preferred_contact])
+                    </div>
+                    <div class="detail-edit-actions">
+                      <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
+                      <button type="submit" class="sidebar-btn-primary">Save</button>
+                    </div>
+                  </form>
+                @endif
+              </div>
+            </details>
+          @endif
+
+          {{-- ---------- Permanent + Present Address (owner only) ---------- --}}
           @if ($isOwner)
-            @foreach (['Permanent Address' => [$permanent, 'fa-house'], 'Present Address' => [$present, 'fa-location-dot']] as $title => [$addr, $icon])
-              <details class="profile-detail-item">
+            @foreach ([
+                ['key' => 'permanent', 'label' => 'Permanent Address', 'icon' => 'fa-house', 'addr' => $permanent],
+                ['key' => 'present', 'label' => 'Present Address', 'icon' => 'fa-location-dot', 'addr' => $present],
+              ] as $a)
+              <details class="profile-detail-item" data-section="{{ $a['key'] }}">
                 <summary>
                   <span class="detail-left">
-                    <span class="detail-icon"><i class="fa-solid {{ $icon }}" aria-hidden="true"></i></span>
-                    <span class="detail-label">{{ $title }}</span>
+                    <span class="detail-icon"><i class="fa-solid {{ $a['icon'] }}" aria-hidden="true"></i></span>
+                    <span class="detail-label">{{ $a['label'] }}</span>
                   </span>
-                  <span class="detail-actions"><span class="detail-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span></span>
+                  @include('members._detail-actions', ['label' => $a['label'], 'key' => $a['key']])
                 </summary>
                 <div class="detail-content">
                   <dl class="detail-grid">
-                    <div><dt>House Name</dt><dd>{{ $addr?->house ?: '—' }}</dd></div>
-                    <div><dt>Country</dt><dd>{{ $addr?->country?->name ?: '—' }}</dd></div>
-                    <div><dt>State</dt><dd>{{ $addr?->state?->name ?: '—' }}</dd></div>
-                    <div><dt>District</dt><dd>{{ $addr?->district?->name ?: '—' }}</dd></div>
-                    <div><dt>PIN</dt><dd>{{ $addr?->pin ?: '—' }}</dd></div>
+                    <div>
+                      <dt>House / Street</dt>
+                      <dd>{{ $a['addr']?->house ?: 'Not provided' }}</dd>
+                    </div>
+                    <div>
+                      <dt>City</dt>
+                      <dd>{{ $a['addr']?->district?->name ?: 'Not provided' }}</dd>
+                    </div>
+                    <div>
+                      <dt>State</dt>
+                      <dd>{{ $a['addr']?->state?->name ?: 'Not provided' }}</dd>
+                    </div>
+                    <div>
+                      <dt>Country</dt>
+                      <dd>{{ $a['addr']?->country?->name ?: 'Not provided' }}</dd>
+                    </div>
+                    <div>
+                      <dt>PIN</dt>
+                      <dd>{{ $a['addr']?->pin ?: 'Not provided' }}</dd>
+                    </div>
                   </dl>
+                  <form class="detail-edit-form" data-section="{{ $a['key'] }}" hidden>
+                    <div class="detail-edit-grid">
+                      @include('members._edit-field', ['idx' => 0, 'field' => 'house', 'label' => 'House / Street', 'value' => $a['addr']?->house])
+                      @include('members._edit-field', ['idx' => 1, 'field' => 'district', 'label' => 'City', 'value' => $a['addr']?->district?->name, 'options' => $o('districts')])
+                      @include('members._edit-field', ['idx' => 2, 'field' => 'state', 'label' => 'State', 'value' => $a['addr']?->state?->name, 'options' => $o('states')])
+                      @include('members._edit-field', ['idx' => 3, 'field' => 'country', 'label' => 'Country', 'value' => $a['addr']?->country?->name, 'options' => $o('countries')])
+                      @include('members._edit-field', ['idx' => 4, 'field' => 'pin', 'label' => 'PIN', 'value' => $a['addr']?->pin])
+                    </div>
+                    <div class="detail-edit-actions">
+                      <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
+                      <button type="submit" class="sidebar-btn-primary">Save</button>
+                    </div>
+                  </form>
                 </div>
               </details>
             @endforeach
           @endif
 
-          {{-- Employment --}}
-          <details class="profile-detail-item">
-            <summary>
-              <span class="detail-left">
-                <span class="detail-icon"><i class="fa-solid fa-briefcase" aria-hidden="true"></i></span>
-                <span class="detail-label">Employment Status</span>
-              </span>
-              <span class="detail-actions"><span class="detail-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span></span>
-            </summary>
-            <div class="detail-content">
-              <dl class="detail-grid">
-                <div><dt>Status</dt><dd>{{ $p->employment_status ?: '—' }}</dd></div>
-                <div><dt>Organization</dt><dd>{{ $p->organization ?: '—' }}</dd></div>
-                <div><dt>Work Mode</dt><dd>{{ $p->work_mode ?: '—' }}</dd></div>
-                <div><dt>Experience</dt><dd>{{ $p->experience_years ? $p->experience_years.' years' : '—' }}</dd></div>
-              </dl>
-            </div>
-          </details>
+          {{-- ---------- Employment Status ---------- --}}
+          @if ($show('employment'))
+            <details class="profile-detail-item" data-section="employment">
+              <summary>
+                <span class="detail-left">
+                  <span class="detail-icon"><i class="fa-solid fa-briefcase" aria-hidden="true"></i></span>
+                  <span class="detail-label">Employment Status</span>
+                </span>
+                @include('members._detail-actions', ['label' => 'Employment Status', 'key' => 'employment'])
+              </summary>
+              <div class="detail-content">
+                <dl class="detail-grid">
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{{ $p->employment_status ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Organization</dt>
+                    <dd>{{ $p->organization ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Work Mode</dt>
+                    <dd>{{ $p->work_mode ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Experience</dt>
+                    <dd>{{ $p->experience_years ? $p->experience_years . ' years' : 'Not provided' }}</dd>
+                  </div>
+                </dl>
+                @if ($isOwner)
+                  <form class="detail-edit-form" data-section="employment" hidden>
+                    <div class="detail-edit-grid">
+                      @include('members._edit-field', ['idx' => 0, 'field' => 'employment_status', 'label' => 'Status', 'value' => $p->employment_status, 'options' => $o('employment_statuses') ?: ['Employed', 'Self-Employed', 'Business', 'Student', 'Freelancer', 'Seeking Opportunities']])
+                      @include('members._edit-field', ['idx' => 1, 'field' => 'organization', 'label' => 'Organization', 'value' => $p->organization])
+                      @include('members._edit-field', ['idx' => 2, 'field' => 'work_mode', 'label' => 'Work Mode', 'value' => $p->work_mode, 'options' => $o('work_modes') ?: ['On-site', 'Remote', 'Hybrid', 'Field Work', 'Flexible']])
+                      @include('members._edit-field', ['idx' => 3, 'field' => 'experience_years', 'label' => 'Experience', 'value' => $p->experience_years ? $p->experience_years . ' years' : '', 'options' => $o('experience') ?: ['0-2 years', '3-5 years', '6-10 years', '11-15 years', '16+ years']])
+                    </div>
+                    <div class="detail-edit-actions">
+                      <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
+                      <button type="submit" class="sidebar-btn-primary">Save</button>
+                    </div>
+                  </form>
+                @endif
+              </div>
+            </details>
+          @endif
 
-          {{-- Job --}}
-          <details class="profile-detail-item">
-            <summary>
-              <span class="detail-left">
-                <span class="detail-icon"><i class="fa-solid fa-toolbox" aria-hidden="true"></i></span>
-                <span class="detail-label">Job Details</span>
-              </span>
-              <span class="detail-actions"><span class="detail-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span></span>
-            </summary>
-            <div class="detail-content">
-              <dl class="detail-grid">
-                <div><dt>Job Category</dt><dd>{{ $p->job?->category?->name ?: '—' }}</dd></div>
-                <div><dt>Job</dt><dd>{{ $p->job?->name ?: '—' }}</dd></div>
-              </dl>
-            </div>
-          </details>
+          {{-- ---------- Job Details ---------- --}}
+          @if ($show('job'))
+            <details class="profile-detail-item" data-section="job">
+              <summary>
+                <span class="detail-left">
+                  <span class="detail-icon"><i class="fa-solid fa-toolbox" aria-hidden="true"></i></span>
+                  <span class="detail-label">Job Details</span>
+                </span>
+                @include('members._detail-actions', ['label' => 'Job Details', 'key' => 'job'])
+              </summary>
+              <div class="detail-content">
+                <dl class="detail-grid">
+                  <div>
+                    <dt>Job Category</dt>
+                    <dd>{{ $p->job?->category?->name ?: 'Not provided' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Job</dt>
+                    <dd>{{ $p->job?->name ?: 'Not provided' }}</dd>
+                  </div>
+                </dl>
+                @if ($isOwner)
+                  <form class="detail-edit-form" data-section="job" hidden>
+                    <div class="detail-edit-grid">
+                      @include('members._edit-field', ['idx' => 0, 'field' => 'job_category', 'label' => 'Category', 'value' => $p->job?->category?->name, 'options' => $o('job_categories') ?: array_keys($jobsByCategory), 'role' => 'category'])
+                      @include('members._edit-field', ['idx' => 1, 'field' => 'job', 'label' => 'Job', 'value' => $p->job?->name, 'options' => $o('jobs') ?: ($jobsByCategory[$p->job?->category?->name] ?? []), 'role' => 'job'])
+                    </div>
+                    <div class="detail-edit-actions">
+                      <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
+                      <button type="submit" class="sidebar-btn-primary">Save</button>
+                    </div>
+                  </form>
+                @endif
+              </div>
+            </details>
+          @endif
         </div>
       </section>
 
-      {{-- Sidebar --}}
+      {{-- ===================== SIDEBAR ===================== --}}
       <aside class="profile-sidebar" aria-label="Profile sidebar">
-        <article class="sidebar-card profile-brief-card" id="profile-brief-card">
 
-          <div class="other-connect-block">
-            <header class="sidebar-card-header"><h3>Connect</h3></header>
+        @if ($isOwner)
+          {{-- ---------- Profile brief (owner) ---------- --}}
+          <article class="sidebar-card profile-brief-card" id="profile-brief-card">
+            <header class="sidebar-card-header">
+              <h3>Edit Your Profile Brief</h3>
+              <button type="button" class="sidebar-icon-btn" id="briefEditBtn" aria-label="Edit profile brief"
+                aria-pressed="false" aria-expanded="false" aria-controls="profileBriefForm">
+                <i class="fa-solid fa-pen" aria-hidden="true"></i>
+              </button>
+            </header>
 
-            @unless ($isOwner)
+            <div class="profile-brief-view" id="profileBriefView">
+              <div class="profile-card profile-card--sidebar">
+                <div class="profile-card-main">
+                  <img class="profile-avatar" src="{{ $p->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'"
+                    alt="Portrait of {{ $user->name }}" width="68" height="68" />
+                  <div class="profile-card-info">
+                    <h4 class="profile-name">
+                      {{ $user->name }}
+                      @if ($user->email_verified_at)
+                        <i class="fa-solid fa-circle-check" title="Verified" aria-label="Verified"></i>
+                      @endif
+                    </h4>
+                    <p class="profile-role">{{ $p->job?->name ?: 'Profession not added yet' }}</p>
+                    <p class="profile-bio">{{ $p->about ?: "You haven't added a bio yet." }}</p>
+                    <p class="profile-status is-{{ $p->status ?: 'available' }}">
+                      <span class="status-dot" aria-hidden="true"></span>
+                      {{ ucfirst($p->status ?: 'available') }}
+                    </p>
+                  </div>
+                </div>
+                <div class="profile-location">
+                  <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                  <div>
+                    <strong>{{ collect([$present?->district?->name, $present?->state?->name])->filter()->implode(', ') ?: 'Location not added yet' }}</strong>
+                    <span>{{ $present?->district ? $present->district->name . ' District' : '' }}</span>
+                  </div>
+                </div>
+                <div class="profile-contact">
+                  <a href="tel:+91{{ $user->phone }}"><i class="fa-solid fa-phone" aria-hidden="true"></i> +91
+                    {{ $user->phone }}</a>
+                  @if ($user->email)
+                    <a href="mailto:{{ $user->email }}"><i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                      {{ $user->email }}</a>
+                  @endif
+                </div>
+              </div>
+            </div>
+
+            <form class="profile-brief-form" id="profileBriefForm" data-section="brief" hidden>
+              <label>
+                <span>Full Name</span>
+                <input type="text" name="name" value="{{ $user->name }}" />
+              </label>
+              <label>
+                <span>Profession</span>
+                <input type="text" name="role" value="{{ $p->job?->name }}" />
+              </label>
+              <label>
+                <span>Bio</span>
+                <textarea name="bio" rows="3">{{ $p->about }}</textarea>
+              </label>
+              <label>
+                <span>Availability</span>
+                <select name="status">
+                  <option value="available" @selected(($p->status ?: 'available') === 'available')>Available</option>
+                  <option value="busy" @selected($p->status === 'busy')>Busy</option>
+                </select>
+              </label>
+              <label>
+                <span>Location</span>
+                <input type="text" name="location"
+                  value="{{ collect([$present?->district?->name, $present?->state?->name])->filter()->implode(', ') }}" />
+              </label>
+              <label>
+                <span>District</span>
+                <input type="text" name="district"
+                  value="{{ $present?->district ? $present->district->name . ' District' : '' }}" />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input type="tel" name="phone" value="{{ $user->phone }}" />
+              </label>
+
+              {{-- Email: the only field that needs verification --}}
+              <div class="verify-wrap" data-email-verify data-original="{{ $user->email }}"
+                data-verified="{{ $user->email_verified_at ? 1 : 0 }}">
+                <label>
+                  <span>Email</span>
+                  <input type="email" name="email" value="{{ $user->email }}" />
+                </label>
+                <span class="verified-badge" @unless ($user->email_verified_at) hidden @endunless>
+                  <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Verified
+                </span>
+                <button type="button" class="verify-btn" data-verify="email"
+                  @if ($user->email_verified_at) hidden @endif>Verify</button>
+              </div>
+
+              <div class="profile-brief-form-actions">
+                <button type="button" class="sidebar-btn-secondary" id="briefCancelBtn">Cancel</button>
+                <button type="submit" class="sidebar-btn-primary">Save</button>
+              </div>
+            </form>
+          </article>
+        @else
+          {{-- ---------- Connect + Similar members (visitor) ---------- --}}
+          <article class="sidebar-card profile-brief-card" id="profile-brief-card">
+            <div class="other-connect-block">
+              <header class="sidebar-card-header">
+                <h3>Connect</h3>
+              </header>
+
               <div class="other-message-wrap">
                 <button type="button" class="sidebar-btn-primary other-message-btn" id="sendMessageBtn"
-                        aria-expanded="false" aria-controls="otherChatBox">
-                  <i class="fa-regular fa-comments" aria-hidden="true"></i> Send a Message
+                  aria-expanded="false" aria-controls="otherChatBox">
+                  <i class="fa-regular fa-comments" aria-hidden="true"></i>
+                  Send a Message
                 </button>
 
-                <div class="other-chat-box" id="otherChatBox" hidden>
+                <div class="other-chat-box" id="otherChatBox" data-uuid="{{ $user->uuid }}" hidden>
                   <header class="other-chat-head">
                     <div class="other-chat-head-info">
-                      <img src="{{ $p->photo_url }}" alt="" width="36" height="36" />
+                      <img src="{{ $p->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="36"
+                        height="36" />
                       <div>
                         <strong>{{ $user->name }}</strong>
                         <span>Usually replies within a day</span>
@@ -394,102 +749,214 @@
                   </header>
 
                   <div class="other-chat-messages" id="otherChatMessages" role="log" aria-live="polite">
-                    <p class="other-chat-empty" id="otherChatEmpty">Start a conversation with {{ $user->first_name }}.</p>
+                    <p class="other-chat-empty" id="otherChatEmpty">
+                      Start a conversation with {{ $user->first_name }}.
+                    </p>
                   </div>
 
                   <form class="other-chat-compose" id="otherChatForm">
                     <label class="visually-hidden" for="otherChatInput">Message</label>
-                    <textarea id="otherChatInput" name="message" rows="2" placeholder="Write a message…" required></textarea>
+                    <textarea id="otherChatInput" name="message" rows="2" placeholder="Write a message…"
+                      required></textarea>
                     <button type="submit" class="sidebar-btn-primary other-chat-send" aria-label="Send message">
                       <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
                     </button>
                   </form>
                 </div>
               </div>
-            @endunless
 
-            @if ($user->socialLinks->isNotEmpty())
               <div class="other-social-links" aria-label="Social media profiles">
                 <p class="other-social-label">Social Media Links</p>
-                <ul class="other-social-list">
-                  @foreach ($user->socialLinks as $s)
-                    <li>
-                      <a href="{{ $s->url }}" class="other-social-link other-social-link--{{ $s->name }}"
-                         target="_blank" rel="noopener noreferrer" aria-label="{{ ucfirst($s->name) }}">
-                        <i class="fa-brands fa-{{ match ($s->name) { 'x' => 'x-twitter', 'facebook' => 'facebook-f', default => $s->name } }}" aria-hidden="true"></i>
-                      </a>
-                    </li>
-                  @endforeach
-                </ul>
+                @if ($user->socialLinks->isNotEmpty())
+                  <ul class="other-social-list">
+                    @foreach ($user->socialLinks as $s)
+                      <li>
+                        <a href="{{ $s->url }}" class="other-social-link other-social-link--{{ $s->name }}" target="_blank"
+                          rel="noopener noreferrer" aria-label="{{ ucfirst($s->name) }}">
+                          <i class="fa-brands fa-{{ match ($s->name) { 'x' => 'x-twitter', 'facebook' => 'facebook-f', default => $s->name} }}"
+                            aria-hidden="true"></i>
+                        </a>
+                      </li>
+                    @endforeach
+                  </ul>
+                @else
+                  <p class="other-social-label">No social media links added yet.</p>
+                @endif
               </div>
-            @endif
-          </div>
+            </div>
 
-          {{-- Similar members --}}
-          <div class="similar-members" id="similar-members">
-            <header class="sidebar-card-header similar-members-header"><h3>Similar Members</h3></header>
+            <div class="similar-members" id="similar-members">
+              <header class="sidebar-card-header similar-members-header">
+                <h3>Similar Members</h3>
+              </header>
 
-            <ul class="profile-list similar-members-list">
-              @forelse ($similar as $m)
-                <li class="profile-card">
-                  <div class="profile-main">
-                    <span class="profile-avatar-wrap">
-                      <img class="profile-avatar" src="{{ $m->profile->photo_url }}"
-                           alt="Portrait of {{ $m->name }}" width="72" height="72" />
-                    </span>
-                    <div class="profile-info">
-                      <h3 class="profile-name">
-                        {{ $m->name }}
-                        @if ($m->phone_verified_at)
-                          <i class="fa-solid fa-check" title="Verified" aria-label="Verified"></i>
-                        @endif
-                      </h3>
-                      <p class="profile-role">{{ $m->profile->job?->name }}</p>
-                      <p class="profile-bio">{{ $m->profile->about }}</p>
-                    </div>
-                  </div>
-
-                  <div class="profile-card-meta">
-                    <div class="profile-location">
-                      <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
-                      <div>
-                        <strong>{{ collect([$m->presentAddress?->district?->name, $m->presentAddress?->state?->name])->filter()->implode(', ') ?: ($m->diocese_name) }}</strong>
-                        <span>{{ $m->diocese_name }} Diocese</span>
+              <ul class="profile-list similar-members-list">
+                @forelse ($similar as $m)
+                  <li class="profile-card">
+                    <div class="profile-main">
+                      <span class="profile-avatar-wrap">
+                        <img class="profile-avatar" src="{{ $m->profile->photo_url }}"
+                          onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="Portrait of {{ $m->name }}" width="72"
+                          height="72" />
+                      </span>
+                      <div class="profile-info">
+                        <h3 class="profile-name">
+                          {{ $m->name }}
+                          @if ($m->email_verified_at)
+                            <i class="fa-solid fa-check" title="Verified" aria-label="Verified"></i>
+                          @endif
+                        </h3>
+                        <p class="profile-role">{{ $m->profile->job?->name ?: 'Profession not added yet' }}</p>
+                        <p class="profile-bio">{{ $m->profile->about ?: "This member hasn't added a bio yet." }}</p>
+                        <p class="profile-status is-{{ $m->profile->status ?: 'available' }}">
+                          <span class="status-dot" aria-hidden="true"></span>
+                          {{ ucfirst($m->profile->status ?: 'available') }}
+                        </p>
                       </div>
                     </div>
-                    @auth
+                    <div class="profile-card-meta">
+                      <div class="profile-location">
+                        <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                        <div>
+                          @if ($m->presentAddress?->district || $m->presentAddress?->state)
+                            <strong>{{ collect([$m->presentAddress?->district?->name, $m->presentAddress?->state?->name])->filter()->implode(', ') }}</strong>
+                            <span>{{ $m->presentAddress?->district ? $m->presentAddress->district->name . ' District' : '' }}</span>
+                          @else
+                            <strong>Location not added yet</strong>
+                            <span>Present address not provided</span>
+                          @endif
+                        </div>
+                      </div>
                       <div class="profile-contact">
-                        <a href="tel:+91{{ $m->phone }}"><i class="fa-solid fa-phone" aria-hidden="true"></i> +91 {{ $m->phone }}</a>
+                        <a href="tel:+91{{ $m->phone }}"><i class="fa-solid fa-phone" aria-hidden="true"></i> +91
+                          {{ $m->phone }}</a>
                         @if ($m->email)
-                          <a href="mailto:{{ $m->email }}"><i class="fa-solid fa-envelope" aria-hidden="true"></i> {{ $m->email }}</a>
+                          <a href="mailto:{{ $m->email }}"><i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                            {{ $m->email }}</a>
                         @endif
                         <button type="button" class="profile-appointment">
-                          <i class="fa-regular fa-calendar" aria-hidden="true"></i> Need an appointment
+                          <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                          Need an appointment
                         </button>
                       </div>
-                    @endauth
-                  </div>
+                    </div>
+                    <a href="{{ route('members.show', $m->uuid) }}" class="profile-open"
+                      aria-label="View {{ $m->name }} profile">
+                      <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </a>
+                  </li>
+                @empty
+                  <li class="profile-card">
+                    <div class="profile-main">
+                      <div class="profile-info">
+                        <h3 class="profile-name">No similar members yet</h3>
+                        <p class="profile-bio">Members with the same profession will appear here.</p>
+                      </div>
+                    </div>
+                  </li>
+                @endforelse
+              </ul>
+            </div>
+          </article>
+        @endif
 
-                  <a href="{{ route('members.show', $m) }}" class="profile-open" aria-label="View {{ $m->name }} profile">
-                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-                  </a>
-                </li>
-              @empty
-                <li class="profile-card"><p>No similar members yet.</p></li>
-              @endforelse
-            </ul>
-          </div>
-        </article>
+        {{-- ---------- Work details ---------- --}}
+        @if ($p->work_description || $isOwner)
+          <article class="sidebar-card work-details-card" id="work-details-card">
+            <header class="sidebar-card-header">
+              <h3>Work Details</h3>
+              @if ($isOwner)
+                <button type="button" class="sidebar-icon-btn" id="workEditBtn" aria-label="Edit work description"
+                  aria-pressed="false">
+                  <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                </button>
+              @endif
+            </header>
+
+            <div class="work-summary-view" id="workDetailsView">
+              <p class="work-summary-meta" id="workSummaryMeta">
+                <i class="fa-solid fa-briefcase" aria-hidden="true"></i>
+                <span class="work-summary-meta-text"
+                  id="workSummaryMetaText">{{ collect([$p->job?->name, $p->job?->category?->name, collect([$present?->district?->name, $present?->state?->name])->filter()->implode(', ')])->filter()->implode(' · ') ?: 'Work details not added yet' }}</span>
+              </p>
+              <p class="work-summary-text" id="workSummaryText">
+                {{ $p->work_description ?: 'No work description added yet.' }}
+              </p>
+              @if ($isOwner)
+                <div class="profile-brief-form-actions work-summary-actions" id="workSummaryActions" hidden>
+                  <button type="button" class="sidebar-btn-secondary" id="workCancelBtn">Cancel</button>
+                  <button type="button" class="sidebar-btn-primary" id="workSaveBtn">Save</button>
+                </div>
+              @endif
+            </div>
+          </article>
+        @endif
+
+        @if ($isOwner)
+          {{-- ---------- Change password link ---------- --}}
+          <a href="#change-password" class="sidebar-settings-link" id="changePasswordLink">
+            <span class="sidebar-settings-icon"><i class="fa-solid fa-key" aria-hidden="true"></i></span>
+            <span class="sidebar-settings-copy">
+              <strong>Change Password</strong>
+              <small>Update your account security settings</small>
+            </span>
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+          </a>
+
+          {{-- ---------- Social links manager ---------- --}}
+          <article class="sidebar-card social-links-card" id="social-links-card">
+            <header class="sidebar-card-header">
+              <h3>Social Media Links</h3>
+              <button type="button" class="sidebar-add-btn" id="addSocialBtn">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                Add Another
+              </button>
+            </header>
+
+            <div class="social-links-table" role="table" aria-label="Social media profiles">
+              <div class="social-links-head" role="row">
+                <span role="columnheader">Platform</span>
+                <span role="columnheader">Profile URL</span>
+                <span role="columnheader"><span class="visually-hidden">Actions</span></span>
+              </div>
+              <div class="social-links-body" id="socialLinksBody">
+                @forelse ($user->socialLinks as $s)
+                  <div class="social-link-row" role="row" data-social-row data-id="{{ $s->id }}">
+                    <span class="social-platform" role="cell" data-field="platform">{{ ucfirst($s->name) }}</span>
+                    <a class="social-url" role="cell" href="{{ $s->url }}" target="_blank" rel="noopener noreferrer"
+                      data-field="url">{{ preg_replace('#^https?://(www\.)?#', '', $s->url) }}</a>
+                    <span class="social-link-actions" role="cell">
+                      <button type="button" class="sidebar-icon-btn social-edit-btn"
+                        aria-label="Edit {{ ucfirst($s->name) }} profile">
+                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                      </button>
+                      <button type="button" class="sidebar-icon-btn social-delete-btn"
+                        aria-label="Delete {{ ucfirst($s->name) }} profile">
+                        <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
+                      </button>
+                    </span>
+                  </div>
+                @empty
+                  <p class="other-social-label" id="socialEmpty">No social media links added yet.</p>
+                @endforelse
+              </div>
+            </div>
+          </article>
+        @endif
       </aside>
     </div>
 
-    {{-- Gallery --}}
+    {{-- ===================== GALLERY ===================== --}}
     <section class="profile-panel gallery-panel" aria-labelledby="gallery-heading">
       <header class="profile-panel-header gallery-header">
-        <h2 id="gallery-heading"><i class="fa-regular fa-image" aria-hidden="true"></i> Gallery</h2>
+        <h2 id="gallery-heading">
+          <i class="fa-regular fa-image" aria-hidden="true"></i>
+          Gallery
+        </h2>
         @if ($isOwner)
           <button type="button" class="gallery-add-btn">
-            <i class="fa-solid fa-plus" aria-hidden="true"></i> Add Image
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Add Image
           </button>
         @endif
       </header>
@@ -498,29 +965,34 @@
         <div class="gallery-grid">
           @foreach ($user->galleryImages as $g)
             <figure class="gallery-item">
-              <img src="{{ asset('storage/' . $g->path) }}" alt="{{ $g->title ?: 'Gallery image '.$loop->iteration }}" />
+              <img src="{{ asset('storage/' . $g->path) }}" onerror="this.onerror=null;this.src='{{ $noImg }}'"
+                alt="{{ $g->title ?: 'Gallery image ' . $loop->iteration }}" />
             </figure>
           @endforeach
         </div>
 
         @if ($user->galleryImages->count() > 10)
           <button type="button" class="gallery-view-more">
-            View More <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            View More
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
           </button>
         @endif
       @else
-        <p>No images yet.</p>
+        <div class="gallery-grid">
+          <p>No images added yet.</p>
+        </div>
       @endif
     </section>
   </main>
 
-  {{-- Lightbox --}}
+  {{-- Gallery lightbox --}}
   <div class="gallery-lightbox" id="galleryLightbox" hidden>
     <div class="gallery-lightbox-backdrop" data-gallery-close tabindex="-1" aria-hidden="true"></div>
     <div class="gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Gallery image viewer">
       <button type="button" class="gallery-lightbox-close" data-gallery-close aria-label="Close gallery">
         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
       </button>
+
       <div class="gallery-lightbox-frame">
         <button type="button" class="gallery-lightbox-nav is-prev" id="galleryLightboxPrev" aria-label="Previous image">
           <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
@@ -532,75 +1004,282 @@
           <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>
       </div>
+
       <div class="gallery-lightbox-meta">
         <p class="gallery-lightbox-caption" id="galleryLightboxCaption"></p>
         <p class="gallery-lightbox-counter">
-          <span id="galleryLightboxIndex">1</span> / <span id="galleryLightboxTotal">0</span>
+          <span id="galleryLightboxIndex">1</span> /
+          <span id="galleryLightboxTotal">0</span>
         </p>
       </div>
     </div>
   </div>
+@endsection
 
-  {{-- ================= FOOTER ================= --}}
-  <footer class="site-footer" id="footer">
-    <div class="footer-card">
-      <div class="container footer-grid">
-        <div class="footer-brand">
-          <div class="footer-brand-inner">
-            <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC" width="56" height="56" />
+{{-- ===================== OWNER OVERLAYS (after footer) ===================== --}}
+@section('after_footer')
+  @if ($isOwner)
+    {{-- ===================== MESSAGES PANEL (owner) ===================== --}}
+    <div class="msg-panel-root" id="messagesPanel" hidden>
+      <div class="msg-panel-backdrop" data-msg-close tabindex="-1" aria-hidden="true"></div>
+      <aside class="msg-panel" role="dialog" aria-modal="true" aria-labelledby="messages-panel-title">
+        <div class="msg-panel-view" id="msgListView">
+          <header class="msg-panel-header">
+            <h2 id="messages-panel-title">Messages</h2>
+            <button type="button" class="msg-panel-close" data-msg-close aria-label="Close messages">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+          <ul class="msg-list" id="msgConversationList" role="list">
+            @forelse ($conversations as $c)
+              <li>
+                <button type="button" class="msg-row" data-chat-id="{{ $c->uuid }}" data-name="{{ $c->name }}"
+                  data-avatar="{{ $c->photo_url }}" data-status="{{ $c->preview }}" @if ($c->online) data-online="true" @endif
+                  @if ($c->unread) data-unread="true" @endif>
+                  <span class="msg-avatar-wrap {{ $c->unread ? 'is-story' : '' }}">
+                    <img src="{{ $c->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="56"
+                      height="56" />
+                    @if ($c->online)
+                      <span class="msg-online-dot" aria-hidden="true"></span>
+                    @endif
+                  </span>
+                  <span class="msg-row-copy">
+                    <span class="msg-row-name">{{ $c->name }}</span>
+                    <span class="msg-row-preview {{ $c->unread ? 'is-unread' : '' }}">{{ $c->preview }}</span>
+                  </span>
+                </button>
+              </li>
+            @empty
+              <li class="msg-empty">
+                <p>No conversations yet.</p>
+              </li>
+            @endforelse
+          </ul>
+        </div>
+
+        <div class="msg-panel-view" id="msgChatView" hidden>
+          <header class="msg-chat-header">
+            <button type="button" class="msg-chat-back" id="msgChatBack" aria-label="Back to messages">
+              <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            </button>
+            <div class="msg-chat-person">
+              <img id="msgChatAvatar" src="{{ $noImg }}" alt="" width="40" height="40" />
+              <div>
+                <strong id="msgChatName">Contact</strong>
+                <span id="msgChatStatus">Active now</span>
+              </div>
+            </div>
+            <button type="button" class="msg-panel-close" data-msg-close aria-label="Close messages">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+
+          <div class="msg-chat-log" id="msgChatLog" aria-live="polite"></div>
+          @foreach ($conversations as $c)
+            <div class="msg-thread" data-thread-id="{{ $c->uuid }}" hidden>
+              @php $lastDay = null; @endphp
+              @foreach ($c->messages as $msg)
+                @if ($lastDay !== $msg->day_label)
+                  @php $lastDay = $msg->day_label; @endphp
+                  <div class="msg-day-sep" role="separator"><time>{{ $msg->day_label }}</time></div>
+                @endif
+                <div class="msg-bubble {{ $msg->is_out ? 'is-out' : 'is-in' }}">
+                  <p class="msg-bubble-text">{{ $msg->body }}</p>
+                  <div class="msg-bubble-meta">
+                    <time>{{ $msg->time_label }}</time>
+                    @if ($msg->is_out)
+                      @php
+                        $st = $msg->status ?? 'sent';
+                        $stLabel = ['sent' => 'Sent', 'delivered' => 'Delivered', 'read' => 'Seen'][$st] ?? 'Sent';
+                      @endphp
+                      <span class="msg-ticks is-{{ $st === 'read' ? 'read' : $st }}" data-status="{{ $st }}"
+                        title="{{ $stLabel }}" aria-label="{{ $stLabel }}">
+                        <i class="fa-solid {{ $st === 'sent' ? 'fa-check' : 'fa-check-double' }}" aria-hidden="true"></i>
+                      </span>
+                    @endif
+                  </div>
+                </div>
+              @endforeach
+            </div>
+          @endforeach
+
+          <div class="msg-attach-preview" id="msgAttachPreview" aria-live="polite"></div>
+          <form class="msg-compose" id="msgChatForm" autocomplete="off">
+            <input type="file" id="msgFileInput" class="msg-file-input" accept="image/*,.pdf,.doc,.docx,.txt" multiple
+              tabindex="-1" aria-hidden="true" />
+            <button type="button" class="msg-icon-btn" id="msgAttachBtn" aria-label="Attach file or image">
+              <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
+            </button>
+            <textarea id="msgChatInput" rows="1" placeholder="Message…" aria-label="Type a message"></textarea>
+            <button type="submit" class="msg-icon-btn is-send" id="msgSendBtn" aria-label="Send message">
+              <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+            </button>
+          </form>
+        </div>{{-- /msgChatView --}}
+      </aside>
+    </div>{{-- /msg-panel-root --}}
+
+    {{-- ===================== CHANGE PASSWORD (owner) ===================== --}}
+    <dialog class="password-dialog" id="changePasswordDialog" aria-labelledby="change-password-title">
+      <form method="dialog" class="password-dialog-form" id="changePasswordForm">
+        <header class="password-dialog-header">
+          <div class="password-dialog-heading">
+            <span class="password-dialog-badge" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
             <div>
-              <strong class="footer-tagline">International Business Network <br /> of Catholic Congress</strong>
-              <p>A global platform connecting Catholic entrepreneurs, professionals and organizations to collaborate, trade and grow together.</p>
+              <h2 id="change-password-title">Change Password</h2>
+              <p class="password-dialog-subtitle">Keep your account secure by using a strong password</p>
             </div>
           </div>
-        </div>
+          <button type="button" class="password-dialog-close" id="closePasswordDialog" aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
 
-        <div class="footer-nav">
-          <h3>Navigate</h3>
-          <a href="{{ url('/') }}#home"><span>Home</span></a>
-          <a href="{{ url('/') }}#about"><span>About</span></a>
-          <a href="{{ url('/') }}#events"><span>Events</span></a>
-          <a href="{{ url('networking') }}"><span>Networking</span></a>
-          <a href="{{ url('ch-trading') }}"><span>Trading</span></a>
-        </div>
+        <div class="password-dialog-body">
+          <aside class="password-dialog-aside" aria-hidden="true">
+            <div class="password-hero">
+              <span class="password-hero-orbit"></span>
+              <span class="password-hero-orbit password-hero-orbit--inner"></span>
+              <span class="password-hero-float password-hero-float--shield"><i class="fa-solid fa-shield"></i></span>
+              <span class="password-hero-float password-hero-float--lock"><i class="fa-solid fa-lock"></i></span>
+              <div class="password-hero-lock"><i class="fa-solid fa-lock"></i></div>
+              <div class="password-hero-mask" aria-hidden="true">* * * *</div>
+            </div>
+            <div class="password-tips">
+              <strong><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> Password Tips</strong>
+              <p>Use a combination of letters, numbers and special characters for stronger security.</p>
+            </div>
+          </aside>
 
-        <div class="footer-connect">
-          <h3>Connect</h3>
-          <a href="mailto:ibncc26@gmail.com" class="footer-contact-link">
-            <i class="fa-solid fa-envelope" aria-hidden="true"></i><span>ibncc26@gmail.com</span>
-          </a>
-          <a href="tel:+919847030064" class="footer-contact-link">
-            <i class="fa-solid fa-phone" aria-hidden="true"></i><span>+91 9847030064</span>
-          </a>
-          <h3 class="footer-follow">Follow Us</h3>
-          <div class="socials" aria-label="Social links">
-            <a href="#" aria-label="LinkedIn"><i class="fa-brands fa-linkedin-in" aria-hidden="true"></i></a>
-            <a href="#" aria-label="X / Twitter"><i class="fa-brands fa-x-twitter" aria-hidden="true"></i></a>
-            <a href="#" aria-label="Instagram"><i class="fa-brands fa-instagram" aria-hidden="true"></i></a>
-            <a href="#" aria-label="Facebook"><i class="fa-brands fa-facebook-f" aria-hidden="true"></i></a>
+          <div class="password-dialog-fields">
+            <label class="password-field">
+              <span>Current Password</span>
+              <span class="password-input-wrap">
+                <i class="fa-solid fa-lock password-input-icon password-input-icon--current" aria-hidden="true"></i>
+                <input type="password" name="current" id="pwCurrent" autocomplete="current-password"
+                  placeholder="Enter your current password" required />
+                <button type="button" class="password-toggle" data-toggle-password="pwCurrent"
+                  aria-label="Show current password">
+                  <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                </button>
+              </span>
+            </label>
+
+            <label class="password-field">
+              <span>New Password</span>
+              <span class="password-input-wrap">
+                <i class="fa-solid fa-lock password-input-icon password-input-icon--new" aria-hidden="true"></i>
+                <input type="password" name="new" id="pwNew" autocomplete="new-password"
+                  placeholder="Enter your new password" required />
+                <button type="button" class="password-toggle" data-toggle-password="pwNew" aria-label="Show new password">
+                  <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                </button>
+              </span>
+              <div class="password-strength" id="passwordStrength" aria-live="polite">
+                <div class="password-strength-bars" aria-hidden="true"><span></span><span></span><span></span></div>
+                <em class="password-strength-label">Weak</em>
+              </div>
+            </label>
+
+            <label class="password-field">
+              <span>Confirm New Password</span>
+              <span class="password-input-wrap">
+                <i class="fa-solid fa-lock password-input-icon password-input-icon--confirm" aria-hidden="true"></i>
+                <input type="password" name="confirm" id="pwConfirm" autocomplete="new-password"
+                  placeholder="Re-enter your new password" required />
+                <button type="button" class="password-toggle" data-toggle-password="pwConfirm"
+                  aria-label="Show confirm password">
+                  <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                </button>
+              </span>
+            </label>
           </div>
         </div>
-      </div>
 
-      <div class="container footer-bottom">
-        <p class="footer-copy">&copy; {{ date('Y') }} IBNCC. All rights reserved.</p>
-        <div class="footer-design"><a href="#">Designed By : Astraz Software solutions</a></div>
-      </div>
+        <div class="password-dialog-actions">
+          <button type="button" class="password-btn-cancel" id="cancelPasswordBtn">Cancel</button>
+          <button type="submit" class="password-btn-submit">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            Update Password
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    {{-- ===================== EMAIL OTP VERIFY (owner) ===================== --}}
+    <dialog class="password-dialog" id="emailOtpDialog" aria-labelledby="email-otp-title">
+      <form method="dialog" class="password-dialog-form" id="emailOtpForm">
+        <header class="password-dialog-header">
+          <div class="password-dialog-heading">
+            <span class="password-dialog-badge" aria-hidden="true"><i class="fa-solid fa-envelope-circle-check"></i></span>
+            <div>
+              <h2 id="email-otp-title">Verify Email</h2>
+              <p class="password-dialog-subtitle" id="emailOtpSubtitle">Enter the 6-digit code sent to your email</p>
+            </div>
+          </div>
+          <button type="button" class="password-dialog-close" id="closeEmailOtp" aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="password-dialog-fields">
+          <label class="password-field">
+            <span>Verification Code</span>
+            <span class="password-input-wrap">
+              <i class="fa-solid fa-key password-input-icon" aria-hidden="true"></i>
+              <input type="text" id="emailOtpInput" name="otp" inputmode="numeric" maxlength="6" pattern="\d{6}"
+                autocomplete="one-time-code" placeholder="000000" required />
+            </span>
+          </label>
+          <p class="password-tips" id="emailOtpMsg" aria-live="polite" hidden></p>
+        </div>
+
+        <div class="password-dialog-actions">
+          <button type="button" class="password-btn-cancel" id="emailOtpResend">Resend code</button>
+          <button type="submit" class="password-btn-submit">
+            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+            Verify
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    {{-- Dependent Job options source (category -> jobs), used by the Job Details edit form --}}
+    <div id="profileFieldOptionSources" hidden>
+      @foreach ($jobsByCategory as $category => $jobs)
+        <select data-job-category="{{ $category }}" aria-hidden="true">
+          @foreach ($jobs as $job)
+            <option value="{{ $job }}">{{ $job }}</option>
+          @endforeach
+        </select>
+      @endforeach
     </div>
-  </footer>
+  @endif
+@endsection
 
-  <button type="button" class="back-to-top" id="back-to-top" aria-label="Back to top">
-    <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
-  </button>
-
-  {{-- Login / Register / OTP modals (same partial used on the other pages) --}}
-  @guest
-    @include('partials.auth-modals')
-  @endguest
-
-  <script src="{{ asset('js/script.js') }}"></script>
+{{-- ===================== PAGE SCRIPTS ===================== --}}
+@section('scripts')
+  <script>
+    window.CCHUB = {
+      csrf: @json(csrf_token()),
+      noImg: @json($noImg),
+      isOwner: @json((bool) $isOwner),
+      listUrl: @json(route('messages.index')),
+      threadUrl: @json(route('messages.thread', '__ID__')),
+      sendUrl: @json(route('messages.send', '__ID__')),
+      adminReadUrl: @json(route('admin-messages.read')),
+      shareUrl: @json(route('share.members')),
+      shareSendUrl: @json(route('members.share', '__ID__')),
+      verifyUrl: @json(route('profile.verify')),
+      emailOtpSendUrl: @json(route('profile.email.otp')),
+      emailOtpVerifyUrl: @json(route('profile.email.verify')),
+    };
+  </script>
   <script src="{{ asset('js/cchub/ch-profile.js') }}"></script>
-  <script src="{{ asset('js/cchub/ch-other-profile.js') }}"></script>
-  <script src="{{ asset('js/cchub/ch-login.js') }}"></script>
-</body>
-</html>
+  <script src="{{ asset('js/cchub/profile-save.js') }}"></script>
+  @unless ($isOwner)
+    <script src="{{ asset('js/cchub/ch-other-profile.js') }}"></script>
+  @endunless
+  <script src="{{ asset('js/cchub/profile-social.js') }}"></script>
+  <script src="{{ asset('js/cchub/profile-verify.js') }}"></script>
+@endsection

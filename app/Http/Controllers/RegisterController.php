@@ -65,102 +65,56 @@ class RegisterController extends Controller
     }
 
     // POST /register/otp/send   { type: phone|email, value }
-    public function sendOtp(Request $request)
-    {
-        
-        $data = $request->validate([
-            'type'  => 'required|in:phone,email',
-            'value' => 'required|string|max:100',
-        ]);
 
-        $type  = $data['type'];
-        $value = $this->normalize($type, $data['value']);
 
-        if ($type === 'phone' && ! preg_match('/^\d{10}$/', $value)) {
-            $this->reject('value', 'Enter a valid 10-digit phone number.');
-        }
-        if ($type === 'email' && ! filter_var($value, FILTER_VALIDATE_EMAIL)) {
-            $this->reject('value', 'Enter a valid email address.');
-        }
-        if ($this->isTaken($type, $value)) {
-            $this->reject('value', $type === 'phone'
-                ? 'This phone number is already registered.'
-                : 'This email is already registered.');
-        }
+public function sendOtp(Request $r)
+{
+    $data  = $r->validate(['email' => 'required|email|max:255|unique:users,email']);
+    $email = strtolower(trim($data['email']));
+    $code  = (string) random_int(100000, 999999);
 
-        $otp = (string) random_int(100000, 999999);
+    Cache::put('reg_otp:' . md5($email), $code, now()->addMinutes(10));
 
-        Cache::put(
-            $this->otpKey($type, $value),
-            ['hash' => $this->hashOtp($otp), 'tries' => 0],
-            now()->addMinutes(self::OTP_MINUTES)
-        );
-        Cache::forget($this->verifiedKey($type, $value));
+    try {
+        Mail::raw("Your IBNCC verification code is {$code}. It expires in 10 minutes. Do not share it with anyone.", function ($m) use ($email) {
+            $m->to($email)->subject('Your IBNCC verification code');
+        });
+    } catch (\Throwable $e) {
+        report($e);
+        return response()->json(['message' => 'Could not send email. Please try again.'], 500);
+    }
 
-        $demo = (bool) config('services.otp_demo');
-
-if ($type === 'email') {
-    // Send email OTP
-    Mail::raw(
-        "Your IBNCC verification OTP is: {$otp}",
-        function ($message) use ($value) {
-            $message->to($value)
-                ->subject('IBNCC Verification OTP');
-        }
-    );
-} else {
-    // SMS provider not configured yet.
-    // In demo mode, do not call sendSms().
+    // never return the code
+    return response()->json(['message' => 'OTP sent to your email.']);
 }
 
-        // demo mode: expose the OTP so the modal can show it (turn OFF when SMS is live)
-        return response()->json(['message' => 'OTP sent'] + ($demo ? ['debug_otp' => $otp] : []));
+public function verifyOtp(Request $r)
+{
+    $data  = $r->validate([
+        'email' => 'required|email',
+        'code'  => 'required|digits:6',
+    ]);
+    $email = strtolower(trim($data['email']));
+    $key   = 'reg_otp:' . md5($email);
+
+    if (Cache::get($key) !== $data['code']) {
+        return response()->json(['message' => 'Invalid or expired OTP.'], 422);
     }
 
-    // POST /register/otp/verify   { type, value, otp }
-    public function verifyOtp(Request $request)
-    {
-        $data = $request->validate([
-            'type'  => 'required|in:phone,email',
-            'value' => 'required|string|max:100',
-            'otp'   => 'required|digits:6',
-        ]);
+    Cache::forget($key);
+    Cache::put('reg_email_verified:' . md5($email), true, now()->addMinutes(30));
 
-        $type  = $data['type'];
-        $value = $this->normalize($type, $data['value']);
-        $key   = $this->otpKey($type, $value);
-        $entry = Cache::get($key);
-
-        if (! $entry) {
-            $this->reject('otp', 'OTP expired. Please request a new one.');
-        }
-
-        if ($entry['tries'] >= self::OTP_MAX_TRIES) {
-            Cache::forget($key);
-            $this->reject('otp', 'Too many wrong attempts. Please request a new OTP.');
-        }
-
-        if (! hash_equals($entry['hash'], $this->hashOtp($data['otp']))) {
-            $entry['tries']++;
-            Cache::put($key, $entry, now()->addMinutes(self::OTP_MINUTES));
-            $this->reject('otp', 'Incorrect OTP.');
-        }
-
-        Cache::forget($key);
-        Cache::put($this->verifiedKey($type, $value), true, now()->addMinutes(self::VERIFIED_MINUTES));
-
-        return response()->json(['message' => 'Verified']);
-    }
-
+    return response()->json(['message' => 'Email verified.']);
+}
     // POST /register
    // POST /register
+// POST /register
 public function store(Request $request)
 {
-    
-    $request->merge(['phone' => $this->normalize('phone', (string) $request->input('phone'))]);
-    if ($request->filled('email')) {
-        $request->merge(['email' => $this->normalize('email', $request->input('email'))]);
-    }
+    $request->merge([
+        'phone' => $this->normalize('phone', (string) $request->input('phone')),
+        'email' => $this->normalize('email', (string) $request->input('email')),
+    ]);
 
     $data = $request->validate([
         'name'      => 'required|string|max:100',
@@ -168,7 +122,7 @@ public function store(Request $request)
         'password'  => 'required|string|min:6|max:64',
         'confirm'   => 'required|same:password',
         'phone'     => 'required|digits:10',
-        'email'     => 'nullable|email|max:100',
+        'email'     => 'required|email|max:255',
     ], [
         'confirm.same'       => 'Passwords do not match.',
         'phone.digits'       => 'Enter a valid 10-digit phone number.',
@@ -177,20 +131,19 @@ public function store(Request $request)
     ]);
 
     $phone = $data['phone'];
-    $email = $data['email'] ?? null;
+    $email = $data['email'];
 
     if ($this->isTaken('phone', $phone)) {
         $this->reject('phone', 'This phone number is already registered.');
     }
-    if ($email && $this->isTaken('email', $email)) {
+    if ($this->isTaken('email', $email)) {
         $this->reject('email', 'This email is already registered.');
     }
 
-    if (! Cache::get($this->verifiedKey('phone', $phone))) {
-        $this->reject('phone', 'Please verify your phone number.');
-    }
-    if ($email && ! Cache::get($this->verifiedKey('email', $email))) {
-        $this->reject('email', 'Please verify your email or leave it empty.');
+    // same key that verifyOtp() sets
+    $verifiedKey = 'reg_email_verified:' . md5($email);
+    if (! Cache::get($verifiedKey)) {
+        $this->reject('email', 'Please verify your email.');
     }
 
     $attributes = [
@@ -198,19 +151,15 @@ public function store(Request $request)
         'name'              => $data['name'],
         'parish_id'         => $data['parish_id'],
         'phone'             => $phone,
-        'phone_verified_at' => now(),
         'email'             => $email,
-        'email_verified_at' => $email ? now() : null,
+        'email_verified_at' => now(),
         'password'          => $data['password'],   // hashed by the model cast
     ];
 
     $guest = User::where('phone', $phone)->first();
     $user  = $guest ? tap($guest)->update($attributes) : User::create($attributes);
 
-    Cache::forget($this->verifiedKey('phone', $phone));
-    if ($email) {
-        Cache::forget($this->verifiedKey('email', $email));
-    }
+    Cache::forget($verifiedKey);
 
     Auth::login($user);
     $request->session()->regenerate();

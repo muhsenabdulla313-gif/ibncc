@@ -1,140 +1,9 @@
 /**
- * CC Hub — Login, register, OTP, and reset-password modals
+ * CC Hub: Login, register (email OTP), searchable dropdowns
  */
 
 (() => {
   "use strict";
-
-  const OTP_KEY = "ccHubOtp";
-  const SESSION_KEY = "ccHubSession";
-  const RESEND_SECONDS = 30;
-
-  /* ---------- Signed-in session + header profile icon ---------- */
-  function readSession() {
-    for (const store of [localStorage, sessionStorage]) {
-      try {
-        const session = JSON.parse(store.getItem(SESSION_KEY) || "null");
-        if (session && typeof session === "object") return session;
-      } catch {
-        store.removeItem(SESSION_KEY);
-      }
-    }
-    return null;
-  }
-
-  function writeSession(user, remember) {
-    const session = { name: String(user.name || "").trim(), phone: user.phone || "" };
-    localStorage.removeItem(SESSION_KEY);
-    sessionStorage.removeItem(SESSION_KEY);
-    (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(session));
-    renderHeaderAuth();
-  }
-
-  function logout() {
-    localStorage.removeItem(SESSION_KEY);
-    sessionStorage.removeItem(SESSION_KEY);
-    renderHeaderAuth();
-  }
-
-  function initialOf(name) {
-    const first = Array.from(String(name || "").trim())[0];
-    return first ? first.toLocaleUpperCase() : "";
-  }
-
-  function closeProfileMenus(except) {
-    document.querySelectorAll(".header-profile").forEach((profile) => {
-      if (profile === except) return;
-      const menu = profile.querySelector(".header-profile-menu");
-      const btn = profile.querySelector(".header-profile-btn");
-      if (menu) menu.hidden = true;
-      btn?.setAttribute("aria-expanded", "false");
-    });
-  }
-
-  function buildProfile() {
-    const profile = document.createElement("div");
-    profile.className = "header-profile";
-    profile.innerHTML = `
-      <button type="button" class="header-profile-btn" aria-haspopup="menu" aria-expanded="false">
-        <span class="header-profile-initial" aria-hidden="true"></span>
-      </button>
-      <div class="header-profile-menu" role="menu" hidden>
-        <p class="header-profile-name"></p>
-        <a href="my-account.html" class="header-profile-item" role="menuitem">
-          <i class="fa-regular fa-user" aria-hidden="true"></i> My Account
-        </a>
-        <button type="button" class="header-profile-item" role="menuitem" data-auth-logout>
-          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Logout
-        </button>
-      </div>`;
-
-    const btn = profile.querySelector(".header-profile-btn");
-    const menu = profile.querySelector(".header-profile-menu");
-
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const opening = menu.hidden;
-      closeProfileMenus(profile);
-      menu.hidden = !opening;
-      btn.setAttribute("aria-expanded", String(opening));
-    });
-
-    profile.querySelector("[data-auth-logout]").addEventListener("click", () => {
-      logout();
-      document.querySelector(".header-actions .btn-login")?.focus();
-    });
-
-    return profile;
-  }
-
-  function renderHeaderAuth() {
-    const session = readSession();
-    document.querySelectorAll(".header-actions .btn-login").forEach((loginLink) => {
-      let profile = loginLink.nextElementSibling?.classList.contains("header-profile")
-        ? loginLink.nextElementSibling
-        : null;
-
-      if (!session) {
-        loginLink.hidden = false;
-        profile?.remove();
-        return;
-      }
-
-      if (!profile) {
-        profile = buildProfile();
-        loginLink.after(profile);
-      }
-
-      const name = session.name || "Member";
-      const initial = initialOf(session.name);
-      const initialEl = profile.querySelector(".header-profile-initial");
-      initialEl.textContent = initial;
-      initialEl.classList.toggle("is-fallback", !initial);
-      if (!initial) initialEl.innerHTML = '<i class="fa-solid fa-user"></i>';
-      profile.querySelector(".header-profile-btn").setAttribute("aria-label", `Account menu for ${name}`);
-      profile.querySelector(".header-profile-name").textContent = name;
-      loginLink.hidden = true;
-    });
-  }
-
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".header-profile")) closeProfileMenus();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    const open = document.querySelector(".header-profile-menu:not([hidden])");
-    if (!open) return;
-    closeProfileMenus();
-    open.closest(".header-profile")?.querySelector(".header-profile-btn")?.focus();
-  });
-
-  window.addEventListener("storage", (e) => {
-    if (e.key === SESSION_KEY || e.key === null) renderHeaderAuth();
-  });
-
-  window.ccHubAuth = { getSession: readSession, logout };
-  renderHeaderAuth();
 
   const loginModal = document.getElementById("loginModal");
   const registerModal = document.getElementById("registerModal");
@@ -142,9 +11,7 @@
   const resetPasswordModal = document.getElementById("resetPasswordModal");
   if (!loginModal && !registerModal && !otpModal && !resetPasswordModal) return;
 
-  let resendTimerId = 0;
-  let verifiedResetPhone = "";
-
+  /* ---------- Dialog helpers ---------- */
   function openDialog(dialog, focusId) {
     if (!dialog) return;
     if (typeof dialog.showModal === "function") {
@@ -182,325 +49,47 @@
     openDialog(registerModal, "registerName");
   }
 
-  function getAccounts() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+  function showLoginError(text) {
+    const el = document.getElementById("loginError");
+    if (el) {
+      el.textContent = text;
+      el.hidden = !text;
+    } else if (text) {
+      alert(text);
     }
   }
 
-  function findAccount(phone) {
-    const normalized = normalizePhone(phone);
-    return getAccounts().find((item) => normalizePhone(item.phone) === normalized) || null;
-  }
+  /* ---------- Open / close wiring ---------- */
+  document.querySelectorAll(".btn-login").forEach((btn) => btn.addEventListener("click", openLogin));
+  document.querySelectorAll(".login-register").forEach((btn) => btn.addEventListener("click", openRegister));
 
-  function saveAccount(account) {
-    const phone = normalizePhone(account.phone);
-    if (!phone) return;
-    const existing = findAccount(phone) || {};
-    const accounts = getAccounts().filter((item) => normalizePhone(item.phone) !== phone);
-    accounts.push({ ...existing, ...account, phone });
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  }
-
-  function normalizePhone(value) {
-    return String(value || "").replace(/\D/g, "");
-  }
-
-  function maskPhone(phone) {
-    const digits = normalizePhone(phone);
-    if (digits.length < 4) return phone || "your registered mobile";
-    return `${digits.slice(0, 2)}${"•".repeat(Math.max(0, digits.length - 6))}${digits.slice(-4)}`;
-  }
-
-  function otpInputs() {
-    return [...(otpModal?.querySelectorAll(".otp-inputs input") || [])];
-  }
-
-  function readOtpValue() {
-    return otpInputs()
-      .map((input) => input.value.replace(/\D/g, ""))
-      .join("");
-  }
-
-  function clearOtpInputs() {
-    otpInputs().forEach((input) => {
-      input.value = "";
-    });
-  }
-
-  function setOtpMessage(type, text) {
-    const error = document.getElementById("otpError");
-    const success = document.getElementById("otpSuccess");
-    if (error) {
-      error.hidden = type !== "error";
-      error.textContent = type === "error" ? text : "";
-    }
-    if (success) {
-      success.hidden = type !== "success";
-      success.textContent = type === "success" ? text : "";
-    }
-  }
-
-  function generateOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
-  }
-
-  function persistOtp(phone, code) {
-    sessionStorage.setItem(
-      OTP_KEY,
-      JSON.stringify({
-        phone: normalizePhone(phone),
-        code,
-        expires: Date.now() + 5 * 60 * 1000,
-      })
-    );
-  }
-
-  function readStoredOtp() {
-    try {
-      return JSON.parse(sessionStorage.getItem(OTP_KEY) || "null");
-    } catch {
-      return null;
-    }
-  }
-
-  function stopResendTimer() {
-    window.clearInterval(resendTimerId);
-    resendTimerId = 0;
-  }
-
-  function startResendTimer() {
-    const resendBtn = document.getElementById("otpResend");
-    const timer = document.getElementById("otpTimer");
-    let remaining = RESEND_SECONDS;
-    stopResendTimer();
-    if (resendBtn) resendBtn.disabled = true;
-    if (timer) timer.textContent = `(${remaining}s)`;
-
-    resendTimerId = window.setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        stopResendTimer();
-        if (resendBtn) resendBtn.disabled = false;
-        if (timer) timer.textContent = "";
-        return;
-      }
-      if (timer) timer.textContent = `(${remaining}s)`;
-    }, 1000);
-  }
-
-  function sendOtp(phone) {
-    const code = generateOtp();
-    persistOtp(phone, code);
-
-    const masked = document.getElementById("otpMaskedPhone");
-    const sms = document.getElementById("otpSms");
-    const smsCode = document.getElementById("otpSmsCode");
-    if (masked) masked.textContent = maskPhone(phone);
-    if (smsCode) smsCode.textContent = code;
-    if (sms) sms.hidden = false;
-
-    clearOtpInputs();
-    setOtpMessage("", "");
-    startResendTimer();
-  }
-
-  function resolveResetPhone() {
-    const typed = document.getElementById("loginPhone")?.value.trim() || "";
-    const accounts = getAccounts();
-    if (typed) return typed;
-    return accounts[accounts.length - 1]?.phone || "";
-  }
-
-  function openOtp(e) {
-    e?.preventDefault();
-    const phoneInput = document.getElementById("loginPhone");
-    const phone = resolveResetPhone();
-
-    if (phoneInput) phoneInput.setCustomValidity("");
-
-    if (!normalizePhone(phone)) {
-      if (phoneInput) {
-        phoneInput.setCustomValidity("Enter the mobile number used at signup.");
-        phoneInput.reportValidity();
-        phoneInput.focus();
-      }
-      return;
-    }
-
-    const accounts = getAccounts();
-    if (accounts.length && !findAccount(phone)) {
-      if (phoneInput) {
-        phoneInput.setCustomValidity("This mobile number is not registered. Please sign up first.");
-        phoneInput.reportValidity();
-        phoneInput.focus();
-      }
-      return;
-    }
-
-    const account = findAccount(phone);
-    const targetPhone = account?.phone || phone;
-
-    closeDialog(loginModal);
-    closeDialog(registerModal);
-    closeDialog(resetPasswordModal);
-    sendOtp(targetPhone);
-    openDialog(otpModal, "otpDigit1");
-  }
-
-  function verifyOtp(e) {
-    e?.preventDefault();
-    const entered = readOtpValue();
-    const stored = readStoredOtp();
-
-    if (entered.length !== 6) {
-      setOtpMessage("error", "Enter the 6-digit OTP sent to your mobile number.");
-      otpInputs()[0]?.focus();
-      return;
-    }
-
-    if (!stored || Date.now() > stored.expires) {
-      setOtpMessage("error", "This OTP has expired. Please resend a new code.");
-      return;
-    }
-
-    if (entered !== stored.code) {
-      setOtpMessage("error", "Invalid OTP. Please try again.");
-      otpInputs()[otpInputs().length - 1]?.focus();
-      return;
-    }
-
-    verifiedResetPhone = stored.phone;
-    sessionStorage.removeItem(OTP_KEY);
-    setOtpMessage("success", "Mobile number verified successfully.");
-    window.setTimeout(() => {
-      stopResendTimer();
-      closeDialog(otpModal);
-      openResetPassword();
-    }, 500);
-  }
-
-  function setResetPasswordMessage(type, text) {
-    const error = document.getElementById("resetPasswordError");
-    const success = document.getElementById("resetPasswordSuccess");
-    if (error) {
-      error.hidden = type !== "error";
-      error.textContent = type === "error" ? text : "";
-    }
-    if (success) {
-      success.hidden = type !== "success";
-      success.textContent = type === "success" ? text : "";
-    }
-  }
-
-  function openResetPassword() {
-    document.getElementById("resetPasswordForm")?.reset();
-    setResetPasswordMessage("", "");
-    closeDialog(loginModal);
-    closeDialog(registerModal);
-    closeDialog(otpModal);
-    openDialog(resetPasswordModal, "resetPassword");
-  }
-
-  function saveNewPassword(e) {
-    e?.preventDefault();
-    const password = document.getElementById("resetPassword")?.value || "";
-    const confirm = document.getElementById("resetPasswordConfirm")?.value || "";
-
-    if (password.length < 6) {
-      setResetPasswordMessage("error", "Password must be at least 6 characters.");
-      document.getElementById("resetPassword")?.focus();
-      return;
-    }
-
-    if (password !== confirm) {
-      setResetPasswordMessage("error", "Passwords do not match.");
-      document.getElementById("resetPasswordConfirm")?.focus();
-      return;
-    }
-
-    if (!normalizePhone(verifiedResetPhone)) {
-      setResetPasswordMessage("error", "Please verify OTP again before setting a new password.");
-      return;
-    }
-
-    saveAccount({
-      phone: verifiedResetPhone,
-      password,
-    });
-    setResetPasswordMessage("success", "Password updated successfully. You can now log in.");
-
-    const loginPhone = document.getElementById("loginPhone");
-    if (loginPhone) loginPhone.value = verifiedResetPhone;
-    verifiedResetPhone = "";
-
-    window.setTimeout(() => {
-      closeDialog(resetPasswordModal);
-      openDialog(loginModal, "loginPassword");
-    }, 800);
-  }
-
-  document.querySelectorAll(".btn-login").forEach((btn) => {
-    btn.addEventListener("click", openLogin);
-  });
-
-  document.querySelectorAll(".login-register").forEach((btn) => {
-    btn.addEventListener("click", openRegister);
-  });
-
+  // Forgot password is not wired to the server yet
   document.querySelectorAll(".login-forgot").forEach((btn) => {
-    btn.addEventListener("click", openOtp);
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      showLoginError("Password reset is not available yet. Please contact the admin.");
+    });
   });
 
   document.getElementById("otpBackLogin")?.addEventListener("click", openLogin);
   document.getElementById("resetBackLogin")?.addEventListener("click", openLogin);
 
-  document.getElementById("loginModalClose")?.addEventListener("click", () => {
-    closeDialog(loginModal);
+  document.getElementById("loginModalClose")?.addEventListener("click", () => closeDialog(loginModal));
+  document.getElementById("registerModalClose")?.addEventListener("click", () => closeDialog(registerModal));
+  document.getElementById("otpModalClose")?.addEventListener("click", () => closeDialog(otpModal));
+  document.getElementById("resetPasswordModalClose")?.addEventListener("click", () => closeDialog(resetPasswordModal));
+
+  [loginModal, registerModal, otpModal, resetPasswordModal].forEach((dlg) => {
+    dlg?.addEventListener("click", (e) => {
+      if (e.target === dlg) closeDialog(dlg);
+    });
   });
 
-  document.getElementById("registerModalClose")?.addEventListener("click", () => {
-    closeDialog(registerModal);
-  });
-
-  document.getElementById("otpModalClose")?.addEventListener("click", () => {
-    stopResendTimer();
-    closeDialog(otpModal);
-  });
-
-  document.getElementById("resetPasswordModalClose")?.addEventListener("click", () => {
-    closeDialog(resetPasswordModal);
-  });
-
-  loginModal?.addEventListener("click", (e) => {
-    if (e.target === loginModal) closeDialog(loginModal);
-  });
-
-  registerModal?.addEventListener("click", (e) => {
-    if (e.target === registerModal) closeDialog(registerModal);
-  });
-
-  otpModal?.addEventListener("click", (e) => {
-    if (e.target === otpModal) {
-      stopResendTimer();
-      closeDialog(otpModal);
-    }
-  });
-
-  resetPasswordModal?.addEventListener("click", (e) => {
-    if (e.target === resetPasswordModal) closeDialog(resetPasswordModal);
-  });
-
-  document.getElementById("loginPhone")?.addEventListener("input", () => {
-    document.getElementById("loginPhone").setCustomValidity("");
-  });
-
+  /* ---------- Password show / hide ---------- */
   function bindPasswordToggle(btn) {
     btn.addEventListener("click", () => {
-      const input = document.getElementById(btn.getAttribute("data-password-toggle")) ||
+      const input =
+        document.getElementById(btn.getAttribute("data-password-toggle")) ||
         document.getElementById("loginPassword");
       if (!input) return;
       const hidden = input.type === "password";
@@ -521,142 +110,222 @@
     bindPasswordToggle(loginToggle);
   }
 
-  document.getElementById("loginPassword")?.addEventListener("input", () => {
-    document.getElementById("loginPassword").setCustomValidity("");
+  /* ---------- Login (server) ---------- */
+  document.getElementById("loginForm")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const form = this;
+    const btn = form.querySelector(".login-submit");
+    showLoginError("");
+    if (btn) btn.disabled = true;
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const firstError = data.errors ? Object.values(data.errors)[0]?.[0] : "";
+        showLoginError(firstError || data.message || "Login failed.");
+        return;
+      }
+
+      window.location.href = data.redirect || "/";
+    } catch (error) {
+      console.error(error);
+      showLoginError("Unable to connect to the server.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
 
-  document.getElementById("loginForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const phoneInput = document.getElementById("loginPhone");
-    const passwordInput = document.getElementById("loginPassword");
+  /* ---------- Register email OTP verification ---------- */
+  function setupRegisterEmailVerification(o) {
+    if (!o.form || !o.input || !o.verifyBtn || !o.otpPanel || !o.otpInput || !o.confirmBtn) return;
 
-    if (!account) {
-      phoneInput?.setCustomValidity("This mobile number is not registered. Please sign up first.");
-      phoneInput?.reportValidity();
-      return;
-    }
+    const sendUrl = o.form.dataset.otpSend;
+    const verifyUrl = o.form.dataset.otpVerify;
+    const csrf = o.form.querySelector('input[name="_token"]')?.value || "";
+    let verifiedEmail = null;
 
-    if (account.password && account.password !== passwordInput?.value) {
-      passwordInput?.setCustomValidity("Incorrect password. Please try again.");
-      passwordInput?.reportValidity();
-      return;
-    }
+    const post = async (url, body) => {
+      const r = await fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-CSRF-TOKEN": csrf,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(j.message || (j.errors && Object.values(j.errors)[0][0]) || "Something went wrong");
+      }
+      return j;
+    };
 
-    writeSession(account, Boolean(form.elements.remember?.checked));
-    form.reset();
-    closeDialog(loginModal);
+    const say = (text, ok) => {
+      if (!o.msgEl) return;
+      o.msgEl.textContent = text;
+      o.msgEl.hidden = !text;
+      o.msgEl.style.color = ok ? "#16a34a" : "#dc2626";
+    };
+
+    const current = () => o.input.value.trim().toLowerCase();
+    const isValid = () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(current());
+
+    // show the Verify button as soon as the email looks valid
+    o.input.addEventListener("input", () => {
+      if (current() !== verifiedEmail) {
+        verifiedEmail = null;
+        if (o.verifiedBadge) o.verifiedBadge.hidden = true;
+      }
+      o.verifyBtn.hidden = !isValid() || current() === verifiedEmail;
+      if (!isValid()) o.otpPanel.hidden = true;
+    });
+
+    o.verifyBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (!isValid()) {
+        say("Enter a valid email address.", false);
+        o.otpPanel.hidden = false;
+        return;
+      }
+      o.verifyBtn.disabled = true;
+      o.verifyBtn.textContent = "Sending…";
+      try {
+        await post(sendUrl, { email: current() });
+        o.otpPanel.hidden = false;
+        o.otpInput.value = "";
+        o.otpInput.focus();
+        say("OTP sent. Check your inbox (and spam folder).", true);
+        o.verifyBtn.textContent = "Resend";
+      } catch (err) {
+        o.otpPanel.hidden = false;
+        say(err.message, false);
+        o.verifyBtn.textContent = "Verify";
+      }
+      o.verifyBtn.disabled = false;
+    });
+
+    o.otpInput.addEventListener("input", () => {
+      o.otpInput.value = o.otpInput.value.replace(/\D/g, "").slice(0, 6);
+      say("", true);
+    });
+
+    o.otpInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        o.confirmBtn.click();
+      }
+    });
+
+    o.confirmBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const code = o.otpInput.value.trim();
+      if (code.length !== 6) return say("Enter the 6-digit OTP.", false);
+      o.confirmBtn.disabled = true;
+      try {
+        await post(verifyUrl, { email: current(), code });
+        verifiedEmail = current();
+        o.otpPanel.hidden = true;
+        o.verifyBtn.hidden = true;
+        if (o.verifiedBadge) o.verifiedBadge.hidden = false;
+        say("", true);
+      } catch (err) {
+        say(err.message, false);
+      }
+      o.confirmBtn.disabled = false;
+    });
+
+    return { isVerified: () => verifiedEmail !== null && verifiedEmail === current() };
+  }
+
+  const emailVerifier = setupRegisterEmailVerification({
+    form: document.getElementById("registerForm"),
+    input: document.getElementById("registerEmail"),
+    verifyBtn: document.getElementById("registerEmailVerifyBtn"),
+    verifiedBadge: document.getElementById("registerEmailVerified"),
+    otpPanel: document.getElementById("registerEmailOtpPanel"),
+    otpInput: document.getElementById("registerEmailOtpInput"),
+    confirmBtn: document.getElementById("registerEmailOtpConfirm"),
+    msgEl: document.getElementById("registerEmailOtpMsg"),
   });
 
-document.getElementById("registerForm")?.addEventListener("submit", async (e) => {
+  /* ---------- Register submit ---------- */
+  document.getElementById("registerForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const form = e.currentTarget;
 
     const password = document.getElementById("registerPassword")?.value || "";
     const confirm = document.getElementById("registerConfirm")?.value || "";
 
-    const phone = document.getElementById("registerPhone")?.value.trim() || "";
-    const email = document.getElementById("registerEmail")?.value.trim() || "";
-
-    const phoneVerified =
-        document.getElementById("registerPhoneField")?.dataset.verified === "true";
-
-    const emailVerified =
-        document.getElementById("registerEmailField")?.dataset.verified === "true";
-
     if (password !== confirm) {
-        alert("Passwords do not match.");
-        document.getElementById("registerConfirm")?.focus();
-        return;
+      alert("Passwords do not match.");
+      document.getElementById("registerConfirm")?.focus();
+      return;
     }
 
-    if (!phoneVerified) {
-        alert("Please verify your phone number before signing up.");
-        document.getElementById("registerPhone")?.focus();
-        return;
-    }
-
-    if (email && !emailVerified) {
-        alert("Please verify your email address before signing up.");
-        document.getElementById("registerEmail")?.focus();
-        return;
+    if (!emailVerifier || !emailVerifier.isVerified()) {
+      alert("Please verify your email address before signing up.");
+      document.getElementById("registerEmail")?.focus();
+      return;
     }
 
     const parish = document.getElementById("registerParish");
-
     if (!parish?.value) {
-        alert("Please select your parish.");
-        parish?.focus();
-        return;
+      alert("Please select your parish.");
+      parish?.focus();
+      return;
     }
 
     const submitButton = form.querySelector(".register-submit");
-
     if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.innerHTML =
-            '<i class="fa-solid fa-spinner fa-spin"></i> Creating Account...';
+      submitButton.disabled = true;
+      submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating Account...';
     }
 
     try {
-        const response = await fetch(form.action, {
-            method: "POST",
-            body: new FormData(form),
-            headers: {
-                "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest"
-            },
-            credentials: "same-origin"
-        });
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+        credentials: "same-origin",
+      });
 
-        const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
-        if (!response.ok) {
-            if (data.errors) {
-                const messages = Object.values(data.errors)
-                    .flat()
-                    .join("\n");
-
-                alert(messages || "Registration failed.");
-            } else {
-                alert(data.message || "Registration failed.");
-            }
-
-            return;
+      if (!response.ok) {
+        if (data.errors) {
+          alert(Object.values(data.errors).flat().join("\n") || "Registration failed.");
+        } else {
+          alert(data.message || "Registration failed.");
         }
+        return;
+      }
 
-        alert(data.message || "Account created successfully.");
-
-        form.reset();
-
-        document.getElementById("registerPhoneField")?.setAttribute(
-            "data-verified",
-            "false"
-        );
-
-        document.getElementById("registerEmailField")?.setAttribute(
-            "data-verified",
-            "false"
-        );
-
-        if (data.redirect) {
-            window.location.href = data.redirect;
-        }
-
+      alert(data.message || "Account created successfully.");
+      form.reset();
+      window.location.href = data.redirect || "/";
     } catch (error) {
-        console.error("Registration error:", error);
-        alert("Something went wrong while creating your account.");
+      console.error("Registration error:", error);
+      alert("Something went wrong while creating your account.");
     } finally {
-        if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.innerHTML =
-                '<i class="fa-solid fa-user-plus"></i> Sign Up';
-        }
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="fa-solid fa-user-plus"></i> Sign Up';
+      }
     }
-});
+  });
 
-  /* ---------- Searchable dependent dropdowns (register form: Rite → Diocese → Parish) ---------- */
+  /* ---------- Searchable dependent dropdowns (Rite > Diocese > Forane > Parish) ---------- */
   function setupRegisterCombos(form) {
     const combos = [];
     let escapeHandled = false;
@@ -871,6 +540,7 @@ document.getElementById("registerForm")?.addEventListener("submit", async (e) =>
 
       const combo = { select, sync, close, isOpen, filter: null };
       combos.push(combo);
+      sync();
     });
 
     combos.forEach((child) => {
@@ -925,507 +595,69 @@ document.getElementById("registerForm")?.addEventListener("submit", async (e) =>
   const registerFormEl = document.getElementById("registerForm");
   if (registerFormEl) setupRegisterCombos(registerFormEl);
 
-  /* ---------- Inline phone / email OTP verification (register form) ---------- */
- function setupRegisterContactVerification(options) {
-    const {
-        type,
-        field,
-        input,
-        verifyBtn,
-        verifiedBadge,
-        otpPanel,
-        otpInput,
-        confirmBtn,
-        demoEl,
-        msgEl,
-        validate,
-        sentLabel,
-    } = options;
-
-    if (!field || !input || !verifyBtn || !otpPanel || !otpInput || !confirmBtn) {
-        return;
-    }
-
-    const form = input.closest("form");
-
-    const sendUrl = form?.dataset.otpSend;
-    const verifyUrl = form?.dataset.otpVerify;
-
-    let verifiedValue = "";
-
-    function setMsg(text, kind) {
-        if (!msgEl) return;
-
-        if (!text) {
-            msgEl.hidden = true;
-            msgEl.textContent = "";
-            msgEl.classList.remove("is-error", "is-success");
-            return;
-        }
-
-        msgEl.hidden = false;
-        msgEl.textContent = text;
-
-        msgEl.classList.toggle("is-error", kind === "error");
-        msgEl.classList.toggle("is-success", kind === "success");
-    }
-
-    function csrfToken() {
-        return form?.querySelector('input[name="_token"]')?.value || "";
-    }
-
-    function markVerified() {
-        field.dataset.verified = "true";
-
-        verifyBtn.hidden = true;
-
-        if (verifiedBadge) {
-            verifiedBadge.hidden = false;
-        }
-
-        otpPanel.hidden = true;
-        otpInput.value = "";
-
-        if (demoEl) {
-            demoEl.hidden = true;
-            demoEl.textContent = "";
-        }
-
-        setMsg("", "");
-
-        input.readOnly = true;
-    }
-
-    function resetVerification() {
-        field.dataset.verified = "false";
-        verifiedValue = "";
-
-        input.readOnly = false;
-
-        if (verifiedBadge) {
-            verifiedBadge.hidden = true;
-        }
-
-        otpPanel.hidden = true;
-        otpInput.value = "";
-
-        if (demoEl) {
-            demoEl.hidden = true;
-            demoEl.textContent = "";
-        }
-
-        setMsg("", "");
-
-        verifyBtn.hidden = true;
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = "Verify";
-    }
-
-    field.addEventListener("click", () => {
-        if (field.dataset.verified !== "true") {
-            verifyBtn.hidden = false;
-        }
-    });
-
-    field.addEventListener("focusin", () => {
-        if (field.dataset.verified !== "true") {
-            verifyBtn.hidden = false;
-        }
-    });
-
-    /* ---------------- SEND OTP ---------------- */
-
-    verifyBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const value = input.value.trim();
-
-        const error = validate(value);
-
-        if (error) {
-            input.setCustomValidity(error);
-            input.reportValidity();
-            input.focus();
-            return;
-        }
-
-        input.setCustomValidity("");
-
-        if (!sendUrl) {
-            setMsg("OTP service URL is missing.", "error");
-            return;
-        }
-
-        verifyBtn.disabled = true;
-        verifyBtn.textContent = "Sending...";
-
-        try {
-            const body = {
-                type: type,
-                value: value
-            };
-
-            const response = await fetch(sendUrl, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "X-CSRF-TOKEN": csrfToken(),
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                body: JSON.stringify(body)
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                const errors = data.errors
-                    ? Object.values(data.errors).flat().join(" ")
-                    : "";
-
-                setMsg(
-                    errors || data.message || "Unable to send OTP.",
-                    "error"
-                );
-
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = "Verify";
-
-                return;
-            }
-
-            verifiedValue = value;
-
-            otpPanel.hidden = false;
-            otpInput.value = "";
-
-            setMsg(
-                data.message || `${type === "phone" ? "OTP sent to your phone." : "OTP sent to your email."}`,
-                "success"
-            );
-
-            /*
-             * Only for development/testing.
-             * Your controller can return debug_otp when otp_demo=true.
-             */
-            if (demoEl && data.debug_otp) {
-                demoEl.hidden = false;
-                demoEl.innerHTML =
-                    `${sentLabel} <strong>${data.debug_otp}</strong>`;
-            }
-
-            verifyBtn.textContent = "Resend";
-            verifyBtn.disabled = false;
-
-            window.requestAnimationFrame(() => {
-                otpInput.focus();
-            });
-
-        } catch (error) {
-            console.error("OTP send error:", error);
-
-            setMsg(
-                "Unable to send OTP. Please try again.",
-                "error"
-            );
-
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = "Verify";
-        }
-    });
-
-    /* ---------------- INPUT CHANGED ---------------- */
-
-    input.addEventListener("input", () => {
-        input.setCustomValidity("");
-
-        if (
-            field.dataset.verified === "true" &&
-            input.value.trim() !== verifiedValue
-        ) {
-            resetVerification();
-            verifyBtn.hidden = false;
-        }
-    });
-
-    /* ---------------- VERIFY OTP ---------------- */
-
-    confirmBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const entered = otpInput.value
-            .replace(/\D/g, "")
-            .slice(0, 6);
-
-        if (entered.length !== 6) {
-            setMsg(
-                "Enter the complete 6-digit OTP.",
-                "error"
-            );
-
-            otpInput.focus();
-            return;
-        }
-
-        if (!verifyUrl) {
-            setMsg(
-                "OTP verification URL is missing.",
-                "error"
-            );
-
-            return;
-        }
-
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = "Verifying...";
-
-        try {
-            const response = await fetch(verifyUrl, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "X-CSRF-TOKEN": csrfToken(),
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                body: JSON.stringify({
-                    type: type,
-                    value: input.value.trim(),
-                    otp: entered
-                })
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                const errors = data.errors
-                    ? Object.values(data.errors).flat().join(" ")
-                    : "";
-
-                setMsg(
-                    errors || data.message || "Invalid OTP.",
-                    "error"
-                );
-
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = "Confirm";
-
-                return;
-            }
-
-            setMsg(
-                data.message ||
-                `${type === "phone" ? "Phone number" : "Email"} verified successfully.`,
-                "success"
-            );
-
-            markVerified();
-
-        } catch (error) {
-            console.error("OTP verification error:", error);
-
-            setMsg(
-                "Unable to verify OTP. Please try again.",
-                "error"
-            );
-
-        } finally {
-            confirmBtn.disabled = false;
-            confirmBtn.textContent = "Confirm";
-        }
-    });
-
-    otpInput.addEventListener("input", () => {
-        otpInput.value = otpInput.value
-            .replace(/\D/g, "")
-            .slice(0, 6);
-
-        setMsg("", "");
-    });
-
-    otpInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            confirmBtn.click();
-        }
-    });
-}
-
-  setupRegisterContactVerification({
-    type: "phone",
-    field: document.getElementById("registerPhoneField"),
-    input: document.getElementById("registerPhone"),
-    verifyBtn: document.getElementById("registerPhoneVerifyBtn"),
-    verifiedBadge: document.getElementById("registerPhoneVerified"),
-    otpPanel: document.getElementById("registerPhoneOtpPanel"),
-    otpInput: document.getElementById("registerPhoneOtpInput"),
-    confirmBtn: document.getElementById("registerPhoneOtpConfirm"),
-    demoEl: document.getElementById("registerPhoneOtpDemo"),
-    msgEl: document.getElementById("registerPhoneOtpMsg"),
-    sentLabel: "Demo OTP sent to your phone:",
-    validate(value) {
-      const digits = normalizePhone(value);
-      if (digits.length < 10) return "Enter a valid phone number (at least 10 digits).";
-      return "";
-    },
-  });
-
-  setupRegisterContactVerification({
-    type: "email",
-    field: document.getElementById("registerEmailField"),
-    input: document.getElementById("registerEmail"),
-    verifyBtn: document.getElementById("registerEmailVerifyBtn"),
-    verifiedBadge: document.getElementById("registerEmailVerified"),
-    otpPanel: document.getElementById("registerEmailOtpPanel"),
-    otpInput: document.getElementById("registerEmailOtpInput"),
-    confirmBtn: document.getElementById("registerEmailOtpConfirm"),
-    demoEl: document.getElementById("registerEmailOtpDemo"),
-    msgEl: document.getElementById("registerEmailOtpMsg"),
-    sentLabel: "Demo OTP sent to your email:",
-    validate(value) {
-      if (!value) return "Enter an email address to verify.";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email address.";
-      return "";
-    },
-  });
-
-  document.getElementById("otpForm")?.addEventListener("submit", verifyOtp);
-  document.getElementById("resetPasswordForm")?.addEventListener("submit", saveNewPassword);
-
-  document.getElementById("otpResend")?.addEventListener("click", () => {
-    const stored = readStoredOtp();
-    const phone = stored?.phone || resolveResetPhone();
-    if (!normalizePhone(phone)) return;
-    sendOtp(phone);
-    setOtpMessage("success", "A new OTP has been sent to your registered mobile number.");
-    otpInputs()[0]?.focus();
-  });
-
-  const otpBoxList = otpInputs();
-  otpBoxList.forEach((input, index) => {
-    input.addEventListener("input", () => {
-      const digit = input.value.replace(/\D/g, "").slice(-1);
-      input.value = digit;
-      setOtpMessage("", "");
-      if (digit && otpBoxList[index + 1]) otpBoxList[index + 1].focus();
-    });
-
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Backspace" && !input.value && otpBoxList[index - 1]) {
-        otpBoxList[index - 1].focus();
-      }
-    });
-
-    input.addEventListener("paste", (e) => {
-      const pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 6);
-      if (!pasted) return;
-      e.preventDefault();
-      otpBoxList.forEach((box, i) => {
-        box.value = pasted[i] || "";
-      });
-      otpBoxList[Math.min(pasted.length, otpBoxList.length) - 1]?.focus();
-    });
-  });
-
+  /* ---------- Hash shortcuts ---------- */
   if (window.location.hash === "#login") openLogin();
   if (window.location.hash === "#register") openRegister();
-  if (window.location.hash === "#forgot-password") openOtp();
 })();
-/* ===== Cascading selects: rite > diocese > forane > parish ===== */
-document.addEventListener('change', async function (e) {
+
+/* ===== Cascading selects: rite > diocese > forane > parish (loads options from server) ===== */
+document.addEventListener("change", async function (e) {
   const parent = e.target;
-  if (!(parent instanceof HTMLSelectElement) || !parent.dataset.child) { return; }
+  if (!(parent instanceof HTMLSelectElement) || !parent.dataset.child) return;
 
   const child = document.getElementById(parent.dataset.child);
-  if (!child) { return; }
+  if (!child) return;
 
-  child.dataset.ph = child.dataset.ph || (child.options[0] ? child.options[0].text : 'Select');
-  child.innerHTML = '';
-  child.add(new Option(child.dataset.ph, ''));
+  child.dataset.ph = child.dataset.ph || (child.options[0] ? child.options[0].text : "Select");
+  child.innerHTML = "";
+  child.add(new Option(child.dataset.ph, ""));
+  child.options[0].disabled = true;
+  child.options[0].selected = true;
 
   if (parent.value) {
     try {
-      const res = await fetch(parent.dataset.url + '/' + parent.value, { headers: { Accept: 'application/json' } });
-      (await res.json()).forEach(function (o) { child.add(new Option(o.name, o.id)); });
-    } catch (err) { /* leave the list empty */ }
+      const res = await fetch(parent.dataset.url + "/" + parent.value, {
+        headers: { Accept: "application/json" },
+      });
+      (await res.json()).forEach(function (o) {
+        child.add(new Option(o.name, o.id));
+      });
+    } catch (err) {
+      /* leave the list empty */
+    }
   }
 
-  child.dispatchEvent(new Event('change', { bubbles: true }));   // resets the levels below
+  child.dispatchEvent(new Event("change", { bubbles: true })); // resets the levels below
 });
-document.getElementById("loginForm")?.addEventListener("submit", async function (e) {
-    e.preventDefault();
 
-    const form = this;
-    const formData = new FormData(form);
-
-    try {
-        const response = await fetch(form.action, {
-            method: "POST",
-            body: formData,
-            credentials: "same-origin",
-            headers: {
-                "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest",
-            }
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            if (data.errors) {
-                const firstError = Object.values(data.errors)[0]?.[0];
-                alert(firstError || "Login failed.");
-            } else {
-                alert(data.message || "Login failed.");
-            }
-            return;
-        }
-
-        // Laravel has created the session
-        window.location.href = data.redirect || "/";
-
-    } catch (error) {
-        console.error(error);
-        alert("Unable to connect to the server.");
-    }
-});
+/* ===== Header profile dropdown (server-rendered @auth markup) ===== */
 document.addEventListener("DOMContentLoaded", function () {
-    const profile = document.querySelector(".header-profile");
+  const profile = document.querySelector(".header-profile");
+  if (!profile) return;
 
-    if (!profile) return;
+  const button = profile.querySelector(".header-profile-btn");
+  const menu = profile.querySelector(".header-profile-menu");
+  if (!button || !menu) return;
 
-    const button = profile.querySelector(".header-profile-btn");
-    const menu = profile.querySelector(".header-profile-menu");
+  button.addEventListener("click", function (e) {
+    e.stopPropagation();
+    const isOpen = !menu.hidden;
+    menu.hidden = isOpen;
+    button.setAttribute("aria-expanded", String(!isOpen));
+  });
 
-    if (!button || !menu) return;
+  document.addEventListener("click", function (e) {
+    if (!profile.contains(e.target)) {
+      menu.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+    }
+  });
 
-    button.addEventListener("click", function (e) {
-        e.stopPropagation();
-
-        const isOpen = !menu.hidden;
-
-        menu.hidden = isOpen;
-        button.setAttribute("aria-expanded", String(!isOpen));
-    });
-
-    // Close when clicking outside
-    document.addEventListener("click", function (e) {
-        if (!profile.contains(e.target)) {
-            menu.hidden = true;
-            button.setAttribute("aria-expanded", "false");
-        }
-    });
-
-    // Close with Escape
-    document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") {
-            menu.hidden = true;
-            button.setAttribute("aria-expanded", "false");
-            button.focus();
-        }
-    });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      menu.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      button.focus();
+    }
+  });
 });

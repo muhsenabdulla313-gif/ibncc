@@ -257,7 +257,7 @@
         aria-label="Account menu"
       >
         <a
-          href="activity.html"
+          href="#"
           class="app-nav-dropdown-item"
           role="menuitem"
           data-nav-action="activity"

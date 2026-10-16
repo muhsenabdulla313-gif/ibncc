@@ -208,10 +208,7 @@
         <p class="footer-copy">&copy; 2026 IBNCC. All rights reserved.</p>
         <div class="footer-design">
           <a href="#">Designed By : Astraz Software solutions</a>
-          <!-- <span aria-hidden="true">|</span>
-          <a href="#">Terms of Service</a>
-          <span aria-hidden="true">|</span>
-          <a href="#">Sitemap</a> -->
+         
         </div>
       </div>
     </div>
@@ -225,6 +222,8 @@
 
   <script src="js/script.js" defer></script>
   <script src="js/cchub/ch-login.js" defer></script>
+      <script src="js/previous-events-slider.js" defer></script>
+
 </body>
 
 </html>

@@ -1,10 +1,25 @@
+{{-- resources/views/layouts/network.blade.php --}}
+@php
+  $active = trim($__env->yieldContent('nav_active', 'networking'));
+  $noticeText = $notice ?? 'GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8 PM — Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi';
+
+  $navItems = [
+    ['key' => 'home',       'label' => 'Home',       'sub' => 'Welcome to IBNCC',        'icon' => 'fa-house',                'href' => url('/') . '#home'],
+    ['key' => 'about',      'label' => 'About',      'sub' => 'Know more about us',      'icon' => 'fa-circle-info',          'href' => url('/') . '#about'],
+    ['key' => 'events',     'label' => 'Events',     'sub' => 'Upcoming gatherings',     'icon' => 'fa-calendar-days',        'href' => url('/') . '#events'],
+    ['key' => 'networking', 'label' => 'Networking', 'sub' => 'Build global connections','icon' => 'fa-handshake',            'href' => route('networking.index')],
+    ['key' => 'trading',    'label' => 'Trading',    'sub' => 'Collaborate and grow',    'icon' => 'fa-arrow-right-arrow-left','href' => route('trading')],
+  ];
+@endphp
 <!doctype html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Networking | IBNCC</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>@yield('title', 'Networking | IBNCC')</title>
+  @yield('meta')
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,45 +39,46 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="stylesheet" href="css/cchub/ch-styles.css" />
-  <link rel="stylesheet" href="css/cchub/networking.css" />
+  <link rel="stylesheet" href="{{ asset('css/style.css') }}" />
+  <link rel="stylesheet" href="{{ asset('css/cchub/ch-styles.css') }}" />
 
-  <link rel="icon" type="image/png" href="assets/images/logo.png" />
+  {{-- Page specific CSS: child views override with @section('page_css'). Default = networking.css --}}
+  @hasSection('page_css')
+    @yield('page_css')
+  @else
+    <link rel="stylesheet" href="{{ asset('css/cchub/networking.css') }}" />
+  @endif
 
-
+  <link rel="icon" type="image/png" href="{{ asset('assets/images/logo.png') }}" />
+  @stack('styles')
 </head>
 
-<body class="page-networking">
+<body class="@yield('body_class', 'page-networking')" @yield('body_attrs')>
+  {{-- ===================== SITE HEADER ===================== --}}
   <header class="site-header" id="site-header">
     <div class="header-inner">
-      <a href="index.html#home" class="brand" aria-label="IBNCC Home">
+      <a href="{{ url('/') }}#home" class="brand" aria-label="IBNCC Home">
         <span class="brand-text">
-          <img src="assets/images/logo_full.png" alt="IBNCC logo" class="brand-logo" width="52" height="52" />
+          <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC logo" class="brand-logo" width="52" height="52" />
           <span class="brand-tagline">AN INITIATIVE OF CATHOLIC CONGRESS</span>
         </span>
       </a>
 
       <nav class="nav-desktop" aria-label="Primary">
-        <a href="index.html#home" class="nav-link" data-section="home"><span>Home</span></a>
-        <a href="index.html#about" class="nav-link" data-section="about"><span>About</span></a>
-        <a href="index.html#events" class="nav-link" data-section="events"><span>Events</span></a>
-        <a href="networking.html" class="nav-link active" data-section="networking"><span>Networking</span></a>
-        <a href="ch-trading.html" class="nav-link" data-section="trading"><span>Trading</span></a>
+        @foreach ($navItems as $item)
+          <a href="{{ $item['href'] }}" class="nav-link {{ $active === $item['key'] ? 'active' : '' }}" data-section="{{ $item['key'] }}"><span>{{ $item['label'] }}</span></a>
+        @endforeach
       </nav>
 
       <div class="header-actions">
-        <a href="event-details.html" class="header-notice" aria-label="Upcoming event announcement">
+        <a href="{{ url('event-details') }}" class="header-notice" aria-label="Upcoming event announcement">
           <span class="header-notice-icon" aria-hidden="true">
             <i class="fa-solid fa-bell"></i>
           </span>
           <span class="header-notice-track">
             <span class="header-notice-marquee">
-              <span class="header-notice-text">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8 PM —
-                Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi</span>
-              <span class="header-notice-text" aria-hidden="true">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8
-                PM —
-                Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi</span>
+              <span class="header-notice-text">{{ $noticeText }}</span>
+              <span class="header-notice-text" aria-hidden="true">{{ $noticeText }}</span>
             </span>
           </span>
         </a>
@@ -77,87 +93,61 @@
 
     <nav class="nav-mobile" id="mobile-menu" aria-label="Mobile" hidden>
       <div class="nav-mobile-card">
-        <a href="event-details.html" class="header-notice header-notice--mobile"
+        <a href="{{ url('event-details') }}" class="header-notice header-notice--mobile"
           aria-label="Upcoming event announcement">
           <span class="header-notice-icon" aria-hidden="true">
             <i class="fa-solid fa-bell"></i>
           </span>
           <span class="header-notice-track">
             <span class="header-notice-marquee">
-              <span class="header-notice-text">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8 PM —
-                Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi</span>
-              <span class="header-notice-text" aria-hidden="true">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8
-                PM —
-                Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi</span>
+              <span class="header-notice-text">{{ $noticeText }}</span>
+              <span class="header-notice-text" aria-hidden="true">{{ $noticeText }}</span>
             </span>
           </span>
         </a>
         <div class="nav-mobile-list">
-          <a href="index.html#home" class="nav-link" data-section="home">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Home</strong>
-              <em>Welcome to IBNCC</em>
-            </span>
-            <i class="fa-solid fa-chevron-righ t nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="index.html#about" class="nav-link" data-section="about">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>About</strong>
-              <em>Know more about us</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="index.html#events" class="nav-link" data-section="events">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Events</strong>
-              <em>Upcoming gatherings</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="networking.html" class="nav-link active" data-section="networking">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-handshake"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Networking</strong>
-              <em>Build global connections</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="ch-trading.html" class="nav-link" data-section="trading">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-arrow-right-arrow-left"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Trading</strong>
-              <em>Collaborate and grow</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
+          @foreach ($navItems as $item)
+            <a href="{{ $item['href'] }}" class="nav-link {{ $active === $item['key'] ? 'active' : '' }}" data-section="{{ $item['key'] }}">
+              <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid {{ $item['icon'] }}"></i></span>
+              <span class="nav-mobile-copy">
+                <strong>{{ $item['label'] }}</strong>
+                <em>{{ $item['sub'] }}</em>
+              </span>
+              <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
+            </a>
+          @endforeach
         </div>
       </div>
     </nav>
   </header>
 
-  <main>
-    <!-- ========== NETWORKING SECTION (from CC_Hub ch-home.html, wrapped in ch-scope) ========== -->
-    <div class="ch-scope">
-      <section class="networking-section" id="networking" aria-labelledby="networking-heading">
-        @yield('body')
-      </section>
-    </div>
-  </main>
+  {{-- Anything that sits directly under the header (e.g. the profile app-nav) --}}
+  @yield('after_header')
 
-  <!-- ========== FOOTER ========== -->
+  {{-- ===================== PAGE CONTENT ===================== --}}
+  @hasSection('page')
+    {{-- Full custom page (e.g. profile): child supplies its own <main> --}}
+    @yield('page')
+  @else
+    <main>
+      <div class="ch-scope">
+        <section class="networking-section" id="networking" aria-labelledby="networking-heading">
+          @yield('body')
+        </section>
+      </div>
+    </main>
+  @endif
+
+  {{-- ===================== FOOTER ===================== --}}
   <footer class="site-footer" id="footer">
     <div class="footer-card">
       <div class="container footer-grid">
         <div class="footer-brand">
           <div class="footer-brand-inner">
-            <img src="assets/images/logo_full.png" alt="IBNCC" width="56" height="56" />
+            <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC" width="56" height="56" />
             <div>
               <strong class="footer-tagline">International Business Network <br />
                 of Catholic Congress</strong>
-              <!-- <span>International Business Network</span> -->
               <p>
                 A global platform connecting Catholic entrepreneurs,
                 professionals and organizations to collaborate, trade and grow
@@ -167,22 +157,11 @@
           </div>
         </div>
 
-        <!-- <div class="footer-nav">
-          <h3>Navigate</h3>
-          <a href="#home"><i class="fa-solid fa-house" aria-hidden="true"></i><span>Home</span></a>
-          <a href="#about"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>About</span></a>
-          <a href="#events"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span>Events</span></a>
-          <a href="#networking"><i class="fa-solid fa-handshake" aria-hidden="true"></i><span>Networking</span></a>
-          <a href="ch-trading.html"><i class="fa-solid fa-arrow-right-arrow-left"
-              aria-hidden="true"></i><span>Trading</span></a>
-        </div> -->
         <div class="footer-nav">
           <h3>Navigate</h3>
-          <a href="#home"><span>Home</span></a>
-          <a href="#about"><span>About</span></a>
-          <a href="#events"><span>Events</span></a>
-          <a href="#networking"><span>Networking</span></a>
-          <a href="ch-trading.html"><span>Trading</span></a>
+          @foreach ($navItems as $item)
+            <a href="{{ $item['href'] }}"><span>{{ $item['label'] }}</span></a>
+          @endforeach
         </div>
 
         <div class="footer-connect">
@@ -191,14 +170,10 @@
             <i class="fa-solid fa-envelope" aria-hidden="true"></i>
             <span>ibncc26@gmail.com</span>
           </a>
-          <a href="tel:+10000000000" class="footer-contact-link">
+          <a href="tel:+919847030064" class="footer-contact-link">
             <i class="fa-solid fa-phone" aria-hidden="true"></i>
             <span>+91 9847030064</span>
           </a>
-          <!-- <div class="footer-location">
-            <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
-            <span>IBNCC Global Secretariat, Kochi, Kerala, India</span>
-          </div> -->
 
           <h3 class="footer-follow">Follow Us</h3>
           <div class="socials" aria-label="Social links">
@@ -211,13 +186,9 @@
       </div>
 
       <div class="container footer-bottom">
-        <p class="footer-copy">&copy; 2026 IBNCC. All rights reserved.</p>
+        <p class="footer-copy">&copy; {{ date('Y') }} IBNCC. All rights reserved.</p>
         <div class="footer-design">
           <a href="#">Designed By : Astraz Software solutions</a>
-          <!-- <span aria-hidden="true">|</span>
-          <a href="#">Terms of Service</a>
-          <span aria-hidden="true">|</span>
-          <a href="#">Sitemap</a> -->
         </div>
       </div>
     </div>
@@ -227,7 +198,12 @@
     <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
   </button>
 
-  <!-- ========== LOGIN MODALS (from CC_Hub ch-home.html) ========== -->
+  {{-- Page specific overlays / dialogs (e.g. profile messages panel, change password) --}}
+  @yield('after_footer')
+
+  {{-- ===================== LOGIN / REGISTER MODALS ===================== --}}
+  {{-- Child views can hide these with: @section('no_login_modals')@endsection --}}
+  @unless ($__env->hasSection('no_login_modals'))
   <dialog class="login-modal" id="loginModal" aria-labelledby="login-title">
     <div class="login-card">
       <button type="button" class="login-modal-close" id="loginModalClose" aria-label="Close login">
@@ -621,13 +597,19 @@
       </form>
     </div>
   </dialog>
+  @endunless
 
-  <!-- IBNCC scripts (header behavior, sticky header, mobile menu) -->
-  <script src="js/script.js" defer></script>
-  <!-- CC_Hub scripts (networking directory functionality) -->
-  <script src="js/cchub/ch-main.js" defer></script>
-  <!-- CC_Hub login scripts -->
-  <script src="js/cchub/ch-login.js" defer></script>
+  {{-- ===================== SCRIPTS ===================== --}}
+  <script src="{{ asset('js/script.js') }}"></script>
+
+  {{-- Page specific scripts: child views override with @section('scripts'). Default = networking scripts --}}
+  @hasSection('scripts')
+    @yield('scripts')
+  @else
+    <script src="{{ asset('js/cchub/ch-main.js') }}" defer></script>
+    <script src="{{ asset('js/cchub/ch-login.js') }}" defer></script>
+  @endif
+  @stack('scripts')
 </body>
 
 </html>

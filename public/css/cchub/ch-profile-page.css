@@ -836,3 +836,14 @@
         }
       }
     
+.verify-wrap { display: flex; align-items: flex-end; gap: 8px; }
+.verify-wrap > :first-child { flex: 1; min-width: 0; }
+.verify-btn {
+  height: 40px; padding: 0 14px; border: 1px solid currentColor; border-radius: 8px;
+  background: transparent; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.verify-btn:disabled { opacity: .6; cursor: default; }
+.verified-badge {
+  height: 40px; display: inline-flex; align-items: center; gap: 6px;
+  color: #16a34a; font-weight: 600; white-space: nowrap;
+}

@@ -17,7 +17,7 @@
           <p class="networking-brand-tagline">
             Connect. Collaborate. Grow Together.
           </p>
-        </div>
+        </div> 
       </div>
 
       <div class="networking-search" role="search" aria-label="Search profiles">
@@ -357,7 +357,7 @@
               @endif
             </div>
 
-            <a href="{{ route('members.show', $user) }}" class="profile-open" aria-label="View {{ $user->name }} profile">
+            <a href="{{ route('members.show', $user->uuid) }}" class="profile-open" aria-label="View {{ $user->name }} profile">
               <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
             </a>
           </li>

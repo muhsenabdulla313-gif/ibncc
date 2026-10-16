@@ -309,21 +309,13 @@
       </div>
 
       <div class="register-verify-group" data-verify-type="phone">
-        <div class="register-field register-field--verify" id="registerPhoneField">
-          <i class="fa-solid fa-phone" aria-hidden="true"></i>
-          <div class="register-field-body">
-            <label for="registerPhone">Phone Number</label>
-            <input id="registerPhone" type="tel" name="phone" placeholder="Enter your phone number" autocomplete="tel"
-              required />
-          </div>
-          <button type="button" class="register-verify-btn" id="registerPhoneVerifyBtn" hidden>
-            Verify
-          </button>
-          <span class="register-verified-badge" id="registerPhoneVerified" hidden aria-live="polite">
-            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-            Verified
-          </span>
-        </div>
+      <div class="register-field">
+  <i class="fa-solid fa-phone" aria-hidden="true"></i>
+  <div class="register-field-body">
+    <label for="registerPhone">Phone Number</label>
+    <input id="registerPhone" type="tel" name="phone" placeholder="Enter your phone number" autocomplete="tel" required />
+  </div>
+</div>
         <div class="register-inline-otp" id="registerPhoneOtpPanel" hidden>
           <p class="register-inline-otp-hint">
             Enter the OTP sent to your phone number
@@ -345,9 +337,8 @@
         <div class="register-field register-field--verify" id="registerEmailField">
           <i class="fa-solid fa-envelope" aria-hidden="true"></i>
           <div class="register-field-body">
-            <label for="registerEmail">Email (Optional)</label>
-            <input id="registerEmail" type="email" name="email" placeholder="Enter your email address"
-              autocomplete="email" />
+           <label for="registerEmail">Email</label>
+<input id="registerEmail" type="email" name="email" placeholder="Enter your email address" autocomplete="email" required />
           </div>
           <button type="button" class="register-verify-btn" id="registerEmailVerifyBtn" hidden>
             Verify
@@ -369,8 +360,6 @@
               Confirm
             </button>
           </div>
-          <p class="register-inline-otp-demo" id="registerEmailOtpDemo" hidden></p>
-          <p class="register-inline-otp-msg" id="registerEmailOtpMsg" hidden></p>
         </div>
       </div>
 
