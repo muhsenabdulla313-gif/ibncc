@@ -2,18 +2,27 @@
 @extends('layouts.network')
 
 @php
-  $hiddenSections = $hiddenSections ?? ($p->hidden_sections ?? []);
+  // Safe defaults for optional data passed by the controller.
+  $isOwner = $isOwner ?? (auth()->check() && isset($user) && auth()->id() === $user->id);
+  $similar = $similar ?? collect();
   $opts = $opts ?? [];
-  $o = fn($k) => $opts[$k] ?? [];
   $jobsByCategory = $jobsByCategory ?? [];
   $conversations = $conversations ?? collect();
   $adminMessages = $adminMessages ?? collect();
 
-  // NEW defaults
+  // hidden_sections may be cast to an array, or may arrive as JSON/text.
+  $hiddenSections = $hiddenSections ?? ($p->hidden_sections ?? []);
+  if (is_string($hiddenSections)) {
+      $decodedHiddenSections = json_decode($hiddenSections, true);
+      $hiddenSections = is_array($decodedHiddenSections) ? $decodedHiddenSections : [];
+  }
+  $hiddenSections = is_array($hiddenSections) ? $hiddenSections : (is_iterable($hiddenSections) ? iterator_to_array($hiddenSections) : []);
+
+  $o = fn($k) => $opts[$k] ?? [];
   $isSaved = $isSaved ?? false;
   $isBlocked = $isBlocked ?? false;
   $savedIds = $savedIds ?? [];
-  $shareList = $shareList ?? ($similar ?? collect());
+  $shareList = $shareList ?? $similar;
 
   $unreadAdmin = $adminMessages->whereNull('read_at')->count();
   $unreadChats = $conversations->where('unread', true)->count();
@@ -32,6 +41,87 @@
 
 @section('page_css')
   <link rel="stylesheet" href="{{ asset('css/cchub/ch-profile.css') }}" />
+  <style>
+    /* WhatsApp + Preferred Contact sit side by side in one row */
+    .contact-pair {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 480px) {
+      .contact-pair { grid-template-columns: 1fr; }
+    }
+
+    .preferred-contact-field { min-width: 0; }
+
+    /* Country code is a visual prefix only; the submitted input remains 10 digits. */
+    .phone-input-wrap {
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--input-border, #d1d5db);
+      border-radius: 8px;
+      background: var(--input-bg, #fff);
+    }
+    .phone-input-wrap:focus-within {
+      border-color: var(--input-focus, #64748b);
+      box-shadow: 0 0 0 3px rgba(100, 116, 139, .14);
+    }
+    .phone-country-code {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      color: #475569;
+      background: #f1f5f9;
+      border-right: 1px solid #d1d5db;
+      font-weight: 600;
+    }
+    .phone-input-wrap input {
+      flex: 1 1 auto;
+      width: 1%;
+      min-width: 0;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      outline: none;
+    }
+
+    /* Same box for WhatsApp and Preferred Contact so both look identical */
+    .contact-pair .phone-input-wrap { min-height: 46px; }
+    .phone-country-code { min-width: 52px; }
+    .phone-input-wrap select {
+      flex: 1 1 auto;
+      width: 1%;
+      min-width: 0;
+      padding: 10px 12px;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      outline: none;
+      background-color: transparent;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    .phone-input-wrap select.cd-native { display: none; }
+    .cd { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+    .cd-btn { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .cd-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+    .cd-label.is-placeholder { color: #94a3b8; }
+    .cd-btn i { font-size: 12px; color: #64748b; transition: transform .2s; }
+    .cd.is-open .cd-btn i { transform: rotate(180deg); }
+    .cd-list { position: fixed; z-index: 9999; margin: 0; padding: 4px; list-style: none; background: #fff; border: 1px solid #d1d5db; border-radius: 10px; box-shadow: 0 10px 24px rgba(15,23,42,.15); max-height: 220px; overflow: auto; }
+    .cd-list[hidden] { display: none; }
+    .cd-list li { padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+    .cd-list li:hover, .cd-list li.is-active { background: #f1f5f9; }
+    .cd-list li[aria-selected="true"] { font-weight: 600; }
+  </style>
   @if ($isOwner)
     <link rel="stylesheet" href="{{ asset('css/cchub/ch-profile-page.css') }}" />
   @else
@@ -112,7 +202,7 @@
           </span>
           <span class="app-nav-label">Profile</span>
         </a>
-      @else
+      @elseif (auth()->check())
         <a href="{{ route('members.show', auth()->user()->uuid) }}" class="app-nav-item" aria-label="Your profile"
           aria-haspopup="menu" aria-expanded="false">
           <span class="app-nav-icon app-nav-icon--profile">
@@ -438,27 +528,73 @@
                   </div>
                   <div>
                     <dt>Preferred Contact</dt>
-                    <dd>{{ $p->preferred_contact ? ucfirst($p->preferred_contact) : 'Not provided' }}</dd>
+                    <dd>{{ ['call' => 'Call', 'whatsapp' => 'WhatsApp', 'both' => 'Both'][strtolower(trim((string) ($p->preferred_contact ?? '')))] ?? 'Not provided' }}</dd>
                   </div>
                 </dl>
                 @if ($isOwner)
                   <form class="detail-edit-form" data-section="contact" hidden>
                     <div class="detail-edit-grid">
-                      @include('members._edit-field', ['idx' => 0, 'field' => 'phone', 'label' => 'Mobile', 'type' => 'tel', 'value' => $user->phone])
+                      @php
+                        // Store/submit only the 10-digit national number; +91 is a visual prefix.
+                        $mobileDigits = preg_replace('/\D+/', '', (string) $user->phone);
+                        $mobileDigits = strlen($mobileDigits) > 10 ? substr($mobileDigits, -10) : $mobileDigits;
+                      @endphp
+                      <div class="edit-field phone-edit-field" data-idx="0">
+                        <label for="edit-phone">Mobile</label>
+                        <div class="phone-input-wrap">
+                          <span class="phone-country-code" aria-hidden="true">+91</span>
+                          <input id="edit-phone" type="tel" name="phone" value="{{ $mobileDigits }}"
+                            data-field="phone" data-idx="0" inputmode="numeric" autocomplete="tel-national"
+                            maxlength="10" minlength="10" pattern="[0-9]{10}"
+                            title="Enter a 10-digit mobile number" placeholder="10-digit mobile number" required />
+                        </div>
+                      </div>
 
                       {{-- Email: the only field that needs verification --}}
                       <div class="verify-wrap" data-email-verify data-original="{{ $user->email }}"
                         data-verified="{{ $user->email_verified_at ? 1 : 0 }}">
                         @include('members._edit-field', ['idx' => 1, 'field' => 'email', 'label' => 'Email', 'type' => 'email', 'value' => $user->email])
-                        <span class="verified-badge" @unless ($user->email_verified_at) hidden @endunless>
-                          <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Verified
-                        </span>
-                        <button type="button" class="verify-btn" data-verify="email"
+                        <button type="button" class="verify-btn" data-verify="email" onclick="return window.cchubVerifyEmail(this)" data-send-url="{{ route('register.otp.send') }}" data-verify-url="{{ route('register.otp.verify') }}"
                           @if ($user->email_verified_at) hidden @endif>Verify</button>
                       </div>
 
-                      @include('members._edit-field', ['idx' => 2, 'field' => 'whatsapp', 'label' => 'WhatsApp', 'type' => 'tel', 'value' => $p->whatsapp])
-                      @include('members._edit-field', ['idx' => 3, 'field' => 'preferred_contact', 'label' => 'Preferred Contact', 'value' => $p->preferred_contact])
+                      {{-- WhatsApp + Preferred Contact in ONE row --}}
+                      <div class="contact-pair">
+                        @php
+                          $whatsappDigits = preg_replace('/\D+/', '', (string) ($p->whatsapp ?? ''));
+                          $whatsappDigits = strlen($whatsappDigits) > 10 ? substr($whatsappDigits, -10) : $whatsappDigits;
+                          // Normalize the saved value so old values with different capitalization still select correctly.
+                          $currentPref = strtolower(trim((string) ($p->preferred_contact ?? '')));
+                          $hasPreferredContact = in_array($currentPref, ['call', 'whatsapp', 'both'], true);
+                        @endphp
+
+                        <div class="edit-field phone-edit-field" data-idx="2">
+                          <label for="edit-whatsapp">WhatsApp</label>
+                          <div class="phone-input-wrap">
+                            <span class="phone-country-code" aria-hidden="true">+91</span>
+                            <input id="edit-whatsapp" type="tel" name="whatsapp" value="{{ $whatsappDigits }}"
+                              data-field="whatsapp" data-idx="2" inputmode="numeric" autocomplete="tel-national"
+                              maxlength="10" minlength="10" pattern="[0-9]{10}"
+                              title="Enter a 10-digit WhatsApp number" placeholder="10-digit WhatsApp number" />
+                          </div>
+                        </div>
+
+                        <div class="edit-field phone-edit-field preferred-contact-field" data-idx="3">
+                          <label for="edit-preferred_contact">Preferred Contact</label>
+                          <div class="phone-input-wrap">
+                            <span class="phone-country-code" aria-hidden="true"><i class="fa-solid fa-phone-volume"></i></span>
+                            <select id="edit-preferred_contact" name="preferred_contact"
+                              data-field="preferred_contact" data-idx="3" data-custom-select>
+                              @unless ($hasPreferredContact)
+                                <option value="" selected disabled>Choose one</option>
+                              @endunless
+                              <option value="Call" @selected($currentPref === 'call')>Call</option>
+                              <option value="WhatsApp" @selected($currentPref === 'whatsapp')>WhatsApp</option>
+                              <option value="Both" @selected($currentPref === 'both')>Both</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div class="detail-edit-actions">
                       <button type="button" class="sidebar-btn-secondary" data-edit-cancel>Cancel</button>
@@ -666,15 +802,16 @@
             <form class="profile-brief-form" id="profileBriefForm" data-section="brief" hidden>
               <label>
                 <span>Full Name</span>
-                <input type="text" name="name" value="{{ $user->name }}" />
+                <input type="text" name="name" value="{{ $user->name }}" maxlength="100" 
+                  autocomplete="name" />
               </label>
               <label>
                 <span>Profession</span>
-                <input type="text" name="role" value="{{ $p->job?->name }}" />
+                <input type="text" name="role" value="{{ $p->job?->name }}" maxlength="100" />
               </label>
               <label>
                 <span>Bio</span>
-                <textarea name="bio" rows="3">{{ $p->about }}</textarea>
+                <textarea name="bio" rows="3" maxlength="300">{{ $p->about }}</textarea>
               </label>
               <label>
                 <span>Availability</span>
@@ -685,17 +822,27 @@
               </label>
               <label>
                 <span>Location</span>
-                <input type="text" name="location"
+                <input type="text" name="location" maxlength="100"
                   value="{{ collect([$present?->district?->name, $present?->state?->name])->filter()->implode(', ') }}" />
               </label>
               <label>
                 <span>District</span>
-                <input type="text" name="district"
+                <input type="text" name="district" maxlength="100"
                   value="{{ $present?->district ? $present->district->name . ' District' : '' }}" />
               </label>
-              <label>
+              @php
+                $briefPhoneDigits = preg_replace('/\D+/', '', (string) $user->phone);
+                $briefPhoneDigits = strlen($briefPhoneDigits) > 10 ? substr($briefPhoneDigits, -10) : $briefPhoneDigits;
+              @endphp
+              <label class="phone-edit-field">
                 <span>Phone</span>
-                <input type="tel" name="phone" value="{{ $user->phone }}" />
+                <span class="phone-input-wrap">
+                  <span class="phone-country-code" aria-hidden="true">+91</span>
+                  <input type="tel" name="phone" value="{{ $briefPhoneDigits }}" inputmode="numeric"
+                    maxlength="10" minlength="10" pattern="[0-9]{10}"
+                    title="Enter a 10-digit mobile number" autocomplete="tel-national"
+                    placeholder="10-digit mobile number" required />
+                </span>
               </label>
 
               {{-- Email: the only field that needs verification --}}
@@ -703,12 +850,10 @@
                 data-verified="{{ $user->email_verified_at ? 1 : 0 }}">
                 <label>
                   <span>Email</span>
-                  <input type="email" name="email" value="{{ $user->email }}" />
+                  <input type="email" name="email" value="{{ $user->email }}" maxlength="255"
+                    autocomplete="email" />
                 </label>
-                <span class="verified-badge" @unless ($user->email_verified_at) hidden @endunless>
-                  <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Verified
-                </span>
-                <button type="button" class="verify-btn" data-verify="email"
+                <button type="button" class="verify-btn" data-verify="email" onclick="return window.cchubVerifyEmail(this)" data-send-url="{{ route('register.otp.send') }}" data-verify-url="{{ route('register.otp.verify') }}"
                   @if ($user->email_verified_at) hidden @endif>Verify</button>
               </div>
 
@@ -757,7 +902,7 @@
                   <form class="other-chat-compose" id="otherChatForm">
                     <label class="visually-hidden" for="otherChatInput">Message</label>
                     <textarea id="otherChatInput" name="message" rows="2" placeholder="Write a message…"
-                      required></textarea>
+                      ></textarea>
                     <button type="submit" class="sidebar-btn-primary other-chat-send" aria-label="Send message">
                       <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
                     </button>
@@ -795,7 +940,7 @@
                   <li class="profile-card">
                     <div class="profile-main">
                       <span class="profile-avatar-wrap">
-                        <img class="profile-avatar" src="{{ $m->profile->photo_url }}"
+                        <img class="profile-avatar" src="{{ $m->profile?->photo_url ?: $noImg }}"
                           onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="Portrait of {{ $m->name }}" width="72"
                           height="72" />
                       </span>
@@ -806,11 +951,11 @@
                             <i class="fa-solid fa-check" title="Verified" aria-label="Verified"></i>
                           @endif
                         </h3>
-                        <p class="profile-role">{{ $m->profile->job?->name ?: 'Profession not added yet' }}</p>
-                        <p class="profile-bio">{{ $m->profile->about ?: "This member hasn't added a bio yet." }}</p>
-                        <p class="profile-status is-{{ $m->profile->status ?: 'available' }}">
+                        <p class="profile-role">{{ $m->profile?->job?->name ?: 'Profession not added yet' }}</p>
+                        <p class="profile-bio">{{ $m->profile?->about ?: "This member hasn't added a bio yet." }}</p>
+                        <p class="profile-status is-{{ $m->profile?->status ?: 'available' }}">
                           <span class="status-dot" aria-hidden="true"></span>
-                          {{ ucfirst($m->profile->status ?: 'available') }}
+                          {{ ucfirst($m->profile?->status ?: 'available') }}
                         </p>
                       </div>
                     </div>
@@ -1014,6 +1159,46 @@
       </div>
     </div>
   </div>
+
+  @if ($isOwner)
+    {{-- ===================== EMAIL OTP VERIFY (owner) ===================== --}}
+    <dialog class="password-dialog" id="emailOtpDialog" aria-labelledby="email-otp-title">
+      <form method="dialog" class="password-dialog-form" id="emailOtpForm">
+        <header class="password-dialog-header">
+          <div class="password-dialog-heading">
+            <span class="password-dialog-badge" aria-hidden="true"><i class="fa-solid fa-envelope-circle-check"></i></span>
+            <div>
+              <h2 id="email-otp-title">Verify Email</h2>
+              <p class="password-dialog-subtitle" id="emailOtpSubtitle">Enter the 6-digit code sent to your email</p>
+            </div>
+          </div>
+          <button type="button" class="password-dialog-close" id="closeEmailOtp" aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="password-dialog-fields">
+          <label class="password-field">
+            <span>Verification Code</span>
+            <span class="password-input-wrap">
+              <i class="fa-solid fa-key password-input-icon" aria-hidden="true"></i>
+              <input type="text" id="emailOtpInput" name="otp" inputmode="numeric" maxlength="6" pattern="\d{6}"
+                autocomplete="one-time-code" placeholder="000000"  />
+            </span>
+          </label>
+          <p class="password-tips" id="emailOtpMsg" aria-live="polite" hidden></p>
+        </div>
+
+        <div class="password-dialog-actions">
+          <button type="button" class="password-btn-cancel" id="emailOtpResend">Resend code</button>
+          <button type="submit" class="password-btn-submit">
+            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+            Verify
+          </button>
+        </div>
+      </form>
+    </dialog>
+  @endif
 @endsection
 
 {{-- ===================== OWNER OVERLAYS (after footer) ===================== --}}
@@ -1157,7 +1342,7 @@
               <span class="password-input-wrap">
                 <i class="fa-solid fa-lock password-input-icon password-input-icon--current" aria-hidden="true"></i>
                 <input type="password" name="current" id="pwCurrent" autocomplete="current-password"
-                  placeholder="Enter your current password" required />
+                  placeholder="Enter your current password" maxlength="64"  />
                 <button type="button" class="password-toggle" data-toggle-password="pwCurrent"
                   aria-label="Show current password">
                   <i class="fa-regular fa-eye" aria-hidden="true"></i>
@@ -1170,7 +1355,7 @@
               <span class="password-input-wrap">
                 <i class="fa-solid fa-lock password-input-icon password-input-icon--new" aria-hidden="true"></i>
                 <input type="password" name="new" id="pwNew" autocomplete="new-password"
-                  placeholder="Enter your new password" required />
+                  placeholder="Enter your new password" minlength="6" maxlength="64"  />
                 <button type="button" class="password-toggle" data-toggle-password="pwNew" aria-label="Show new password">
                   <i class="fa-regular fa-eye" aria-hidden="true"></i>
                 </button>
@@ -1186,7 +1371,7 @@
               <span class="password-input-wrap">
                 <i class="fa-solid fa-lock password-input-icon password-input-icon--confirm" aria-hidden="true"></i>
                 <input type="password" name="confirm" id="pwConfirm" autocomplete="new-password"
-                  placeholder="Re-enter your new password" required />
+                  placeholder="Re-enter your new password" minlength="6" maxlength="64"  />
                 <button type="button" class="password-toggle" data-toggle-password="pwConfirm"
                   aria-label="Show confirm password">
                   <i class="fa-regular fa-eye" aria-hidden="true"></i>
@@ -1206,43 +1391,6 @@
       </form>
     </dialog>
 
-    {{-- ===================== EMAIL OTP VERIFY (owner) ===================== --}}
-    <dialog class="password-dialog" id="emailOtpDialog" aria-labelledby="email-otp-title">
-      <form method="dialog" class="password-dialog-form" id="emailOtpForm">
-        <header class="password-dialog-header">
-          <div class="password-dialog-heading">
-            <span class="password-dialog-badge" aria-hidden="true"><i class="fa-solid fa-envelope-circle-check"></i></span>
-            <div>
-              <h2 id="email-otp-title">Verify Email</h2>
-              <p class="password-dialog-subtitle" id="emailOtpSubtitle">Enter the 6-digit code sent to your email</p>
-            </div>
-          </div>
-          <button type="button" class="password-dialog-close" id="closeEmailOtp" aria-label="Close">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-          </button>
-        </header>
-
-        <div class="password-dialog-fields">
-          <label class="password-field">
-            <span>Verification Code</span>
-            <span class="password-input-wrap">
-              <i class="fa-solid fa-key password-input-icon" aria-hidden="true"></i>
-              <input type="text" id="emailOtpInput" name="otp" inputmode="numeric" maxlength="6" pattern="\d{6}"
-                autocomplete="one-time-code" placeholder="000000" required />
-            </span>
-          </label>
-          <p class="password-tips" id="emailOtpMsg" aria-live="polite" hidden></p>
-        </div>
-
-        <div class="password-dialog-actions">
-          <button type="button" class="password-btn-cancel" id="emailOtpResend">Resend code</button>
-          <button type="submit" class="password-btn-submit">
-            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-            Verify
-          </button>
-        </div>
-      </form>
-    </dialog>
 
     {{-- Dependent Job options source (category -> jobs), used by the Job Details edit form --}}
     <div id="profileFieldOptionSources" hidden>
@@ -1270,9 +1418,6 @@
       adminReadUrl: @json(route('admin-messages.read')),
       shareUrl: @json(route('share.members')),
       shareSendUrl: @json(route('members.share', '__ID__')),
-      verifyUrl: @json(route('profile.verify')),
-      emailOtpSendUrl: @json(route('profile.email.otp')),
-      emailOtpVerifyUrl: @json(route('profile.email.verify')),
     };
   </script>
   <script src="{{ asset('js/cchub/ch-profile.js') }}"></script>
@@ -1281,5 +1426,245 @@
     <script src="{{ asset('js/cchub/ch-other-profile.js') }}"></script>
   @endunless
   <script src="{{ asset('js/cchub/profile-social.js') }}"></script>
-  <script src="{{ asset('js/cchub/profile-verify.js') }}"></script>
+  @if ($isOwner)
+    <script src="{{ asset('js/cchub/profile-limits.js') }}?v={{ file_exists(public_path('js/cchub/profile-limits.js')) ? filemtime(public_path('js/cchub/profile-limits.js')) : '1' }}"></script>
+  @endif
+  @if ($isOwner)
+    <script>
+      /* Custom dropdown: always opens DOWNWARD (native selects open upward near the screen bottom) */
+      (function () {
+        var openCd = null;
+        function sync(cd) {
+          var sel = cd._sel, o = sel.options[sel.selectedIndex], ph = !o || !o.value;
+          cd._label.textContent = o ? o.text : 'Choose one';
+          cd._label.classList.toggle('is-placeholder', ph);
+          [].forEach.call(cd._list.children, function (li) {
+            li.setAttribute('aria-selected', li.dataset.value === sel.value ? 'true' : 'false');
+          });
+        }
+        function place(cd) {
+          var w = (cd.closest('.phone-input-wrap') || cd).getBoundingClientRect();
+          cd._list.style.minWidth = w.width + 'px';
+          cd._list.style.left = w.left + 'px';
+          cd._list.style.top = (w.bottom + 4) + 'px';
+        }
+        function closeAll() {
+          if (!openCd) return;
+          openCd._list.hidden = true;
+          openCd.classList.remove('is-open');
+          openCd._btn.setAttribute('aria-expanded', 'false');
+          openCd = null;
+        }
+        function openIt(cd) {
+          closeAll();
+          cd._list.hidden = false;
+          place(cd);
+          var over = cd._list.getBoundingClientRect().bottom + 8 - window.innerHeight;
+          if (over > 0) { window.scrollBy(0, over); place(cd); }
+          cd.classList.add('is-open');
+          cd._btn.setAttribute('aria-expanded', 'true');
+          openCd = cd;
+        }
+        function choose(cd, li) {
+          cd._sel.value = li.dataset.value;
+          cd._sel.dispatchEvent(new Event('input', { bubbles: true }));
+          cd._sel.dispatchEvent(new Event('change', { bubbles: true }));
+          sync(cd); closeAll(); cd._btn.focus();
+        }
+        function enhance(sel) {
+          if (sel._cd) return;
+          var cd = document.createElement('div'); cd.className = 'cd';
+          var btn = document.createElement('button');
+          btn.type = 'button'; btn.className = 'cd-btn';
+          btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+          if (sel.id) { btn.id = sel.id; sel.removeAttribute('id'); }
+          btn.innerHTML = '<span class="cd-label"></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
+          var list = document.createElement('ul');
+          list.className = 'cd-list'; list.setAttribute('role', 'listbox'); list.hidden = true;
+          [].forEach.call(sel.options, function (o) {
+            if (!o.value) return;
+            var li = document.createElement('li');
+            li.setAttribute('role', 'option'); li.dataset.value = o.value; li.textContent = o.text;
+            list.appendChild(li);
+          });
+          sel.parentNode.insertBefore(cd, sel);
+          cd.appendChild(sel); cd.appendChild(btn); cd.appendChild(list);
+          sel.classList.add('cd-native'); sel.tabIndex = -1; sel.setAttribute('aria-hidden', 'true');
+          cd._sel = sel; cd._btn = btn; cd._list = list; cd._label = btn.firstChild; sel._cd = cd;
+          sel.addEventListener('change', function () { sync(cd); });
+          sync(cd);
+        }
+        function syncAll() {
+          document.querySelectorAll('.cd').forEach(sync);
+        }
+        function init() { document.querySelectorAll('select[data-custom-select]').forEach(enhance); }
+
+        document.addEventListener('click', function (e) {
+          var btn = e.target.closest && e.target.closest('.cd-btn');
+          var li = e.target.closest && e.target.closest('.cd-list li');
+          if (btn) { var cd = btn.closest('.cd'); if (openCd === cd) closeAll(); else openIt(cd); }
+          else if (li) { choose(li.closest('.cd'), li); }
+          else closeAll();
+          setTimeout(syncAll, 0); // keep label right after Cancel / re-open
+        });
+        document.addEventListener('keydown', function (e) {
+          var cd = openCd || (e.target.closest && e.target.closest('.cd'));
+          if (!cd) return;
+          var items = [].slice.call(cd._list.children), cur = cd._list.querySelector('.is-active');
+          var i = items.indexOf(cur);
+          if (e.key === 'Escape') { closeAll(); }
+          else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!openCd) openIt(cd);
+            if (cur) cur.classList.remove('is-active');
+            i = e.key === 'ArrowDown' ? Math.min(i + 1, items.length - 1) : Math.max(i - 1, 0);
+            items[i].classList.add('is-active');
+          } else if (e.key === 'Enter' && openCd && cur) { e.preventDefault(); choose(cd, cur); }
+        });
+        window.addEventListener('resize', closeAll);
+        window.addEventListener('scroll', function () { if (openCd) place(openCd); }, true);
+
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+      })();
+    </script>
+  @endif
+  @if ($isOwner)
+    <script>
+      (function () {
+        console.log('[email-verify] ready');
+        var CSRF = @json(csrf_token());
+        var pending = { email: '', sendUrl: '', verifyUrl: '' };
+        var timer = null;
+        var $ = function (id) { return document.getElementById(id); };
+        var field = function (wrap) { return wrap.querySelector('input:not([type="hidden"])'); };
+        var validEmail = function (v) { return /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/.test(v); };
+
+        function post(url, data) {
+          return fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': CSRF,
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(data)
+          }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (json) {
+              if (!res.ok) {
+                var first = json.errors ? (Object.values(json.errors)[0] || [])[0] : null;
+                throw new Error(first || json.message || ('Request failed (' + res.status + ')'));
+              }
+              return json;
+            });
+          });
+        }
+
+        function say(text, isError) {
+          var msg = $('emailOtpMsg');
+          if (!msg) return;
+          msg.hidden = !text;
+          msg.textContent = text || '';
+          msg.style.color = isError ? '#c0392b' : '';
+        }
+
+        function cooldown(sec) {
+          var resend = $('emailOtpResend');
+          clearInterval(timer);
+          var left = sec || 30;
+          resend.disabled = true;
+          resend.textContent = 'Resend in ' + left + 's';
+          timer = setInterval(function () {
+            left--;
+            if (left <= 0) {
+              clearInterval(timer);
+              resend.disabled = false;
+              resend.textContent = 'Resend code';
+            } else {
+              resend.textContent = 'Resend in ' + left + 's';
+            }
+          }, 1000);
+        }
+
+        function sendCode() {
+          return post(pending.sendUrl, { email: pending.email }).then(function () { cooldown(30); });
+        }
+
+        function refreshButton(wrap) {
+          var btn = wrap.querySelector('.verify-btn');
+          var inp = field(wrap);
+          if (!btn || !inp) return;
+          var val = inp.value.trim().toLowerCase();
+          var same = val === (wrap.dataset.original || '').trim().toLowerCase();
+          btn.hidden = (wrap.dataset.verified === '1' && same) || val === '';
+        }
+
+        function setVerified(email) {
+          document.querySelectorAll('[data-email-verify]').forEach(function (w) {
+            w.dataset.original = email;
+            w.dataset.verified = '1';
+            var i = field(w);
+            if (i) i.value = email;
+            refreshButton(w);
+          });
+        }
+
+        /* called by onclick on the Verify button */
+        window.cchubVerifyEmail = function (btn) {
+          console.log('[email-verify] clicked');
+          var dlg = $('emailOtpDialog');
+          if (!dlg) { alert('Verification popup is missing on this page. Refresh and try again.'); return false; }
+
+          var wrap = btn.closest('[data-email-verify]');
+          var email = field(wrap).value.trim().toLowerCase();
+          if (!validEmail(email)) { alert('Enter a valid email address first.'); return false; }
+
+          pending = { email: email, sendUrl: btn.dataset.sendUrl, verifyUrl: btn.dataset.verifyUrl };
+          var label = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Sending...';
+
+          sendCode().then(function () {
+            $('emailOtpSubtitle').textContent = 'Enter the 6-digit code sent to ' + email;
+            $('emailOtpInput').value = '';
+            say('');
+            if (!dlg.open) dlg.showModal();
+            $('emailOtpInput').focus();
+          }).catch(function (err) {
+            console.error('[email-verify] send failed', err);
+            alert(err.message);
+          }).then(function () {
+            btn.disabled = false;
+            btn.textContent = label;
+          });
+          return false;
+        };
+
+        document.addEventListener('input', function (e) {
+          var wrap = e.target.closest && e.target.closest('[data-email-verify]');
+          if (wrap && e.target === field(wrap)) refreshButton(wrap);
+          if (e.target.id === 'emailOtpInput') {
+            e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+          }
+        });
+
+        document.addEventListener('click', function (e) {
+          if (e.target.closest && e.target.closest('#emailOtpResend')) {
+            sendCode().then(function () { say('A new code has been sent.'); })
+              .catch(function (err) { say(err.message, true); });
+          }
+          if (e.target.closest && e.target.closest('#closeEmailOtp')) { $('emailOtpDialog').close(); }
+        });
+
+        document.addEventListener('submit', function (e) {
+          if (e.target.id !== 'emailOtpForm') return;
+          e.preventDefault();
+          post(pending.verifyUrl, { email: pending.email, code: $('emailOtpInput').value.trim() })
+            .then(function (r) { setVerified(r.email || pending.email); $('emailOtpDialog').close(); })
+            .catch(function (err) { say(err.message, true); });
+        });
+      })();
+    </script>
+  @endif
 @endsection

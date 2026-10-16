@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 class RegisterController extends Controller
 {
@@ -69,7 +70,10 @@ class RegisterController extends Controller
 
 public function sendOtp(Request $r)
 {
-    $data  = $r->validate(['email' => 'required|email|max:255|unique:users,email']);
+    // a logged-in user may re-verify their own email; nobody can use someone else's
+    $data  = $r->validate([
+        'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore(Auth::id())],
+    ]);
     $email = strtolower(trim($data['email']));
     $code  = (string) random_int(100000, 999999);
 
@@ -84,7 +88,6 @@ public function sendOtp(Request $r)
         return response()->json(['message' => 'Could not send email. Please try again.'], 500);
     }
 
-    // never return the code
     return response()->json(['message' => 'OTP sent to your email.']);
 }
 
@@ -102,13 +105,22 @@ public function verifyOtp(Request $r)
     }
 
     Cache::forget($key);
+
+    // Logged in (profile page): save the email as verified on this account
+    if ($user = Auth::user()) {
+        if (User::where('email', $email)->where('id', '!=', $user->id)->exists()) {
+            return response()->json(['message' => 'This email is already registered.'], 422);
+        }
+        $user->forceFill(['email' => $email, 'email_verified_at' => now()])->save();
+
+        return response()->json(['message' => 'Email verified.', 'email' => $email, 'verified' => true]);
+    }
+
+    // Registration: unchanged behaviour
     Cache::put('reg_email_verified:' . md5($email), true, now()->addMinutes(30));
 
     return response()->json(['message' => 'Email verified.']);
 }
-    // POST /register
-   // POST /register
-// POST /register
 public function store(Request $request)
 {
     $request->merge([

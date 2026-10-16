@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+    @yield('head')
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin</title>
@@ -23,6 +25,7 @@
     <link rel="stylesheet" href="{{ asset('asset/css/plugins.min.css') }}" />
     <link rel="stylesheet" href="{{ asset('asset/css/kaiadmin.min.css') }}" />
 </head>
+
 <body>
     <div class="wrapper">
         <!-- Sidebar -->
@@ -50,62 +53,49 @@
             </div>
             <div class="sidebar-wrapper scrollbar scrollbar-inner">
                 <div class="sidebar-content">
-                 <ul class="nav nav-secondary">
-    <li class="nav-item active">
-        <a data-bs-toggle="collapse" href="#dashboard" class="collapsed" aria-expanded="false">
-            <i class="fas fa-home"></i>
-            <p>Dashboard</p>
-            <span class="caret"></span>
-        </a>
-        <div class="collapse" id="dashboard">
-            <ul class="nav nav-collapse">
-                <li>
-                    <a href="../demo1/index.html">
-                        <span class="sub-item">Dashboard 1</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </li>
+                    <ul class="nav nav-secondary">
 
-    <li class="nav-section">
-        <span class="sidebar-mini-icon">
-            <i class="fa fa-ellipsis-h"></i>
-        </span>
-        <h4 class="text-section">Components</h4>
-    </li>
 
-    <li class="nav-item">
-        <a data-bs-toggle="collapse" href="#base">
-            <i class="fas fa-layer-group"></i>
-            <p>Base</p>
-            <span class="caret"></span>
-        </a>
-        <div class="collapse" id="base">
-            <ul class="nav nav-collapse">
-                <li>
-                    <a href="components/typography.html">
-                        <span class="sub-item">Typography</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </li>
 
-    {{-- Header Notice --}}
-    <li class="nav-item {{ request()->routeIs('admin.header-notice.*') ? 'active' : '' }}">
-        <a href="{{ route('admin.header-notice.index') }}">
-            <i class="fas fa-bullhorn"></i>
-            <p>Header Notice</p>
-        </a>
-    </li>
-    <li class="nav-item {{ request()->routeIs('admin.banners.*') ? 'active' : '' }}">
-    <a href="{{ route('admin.banners.index') }}">
-        <i class="fas fa-images"></i>
-        <p>Hero Banners</p>
-    </a>
-</li>
-</ul>
+
+                        <li class="nav-item">
+                            <a data-bs-toggle="collapse" href="#base">
+                                <i class="fas fa-layer-group"></i>
+                                <p>Base</p>
+                                <span class="caret"></span>
+                            </a>
+                            <div class="collapse" id="base">
+                                <ul class="nav nav-collapse">
+                                    <li>
+                                        <a href="components/typography.html">
+                                            <span class="sub-item">Typography</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
+
+                        {{-- Header Notice --}}
+                        <li class="nav-item {{ request()->routeIs('admin.header-notice.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.header-notice.index') }}">
+                                <i class="fas fa-bullhorn"></i>
+                                <p>Header Notice</p>
+                            </a>
+                        </li>
+                        <li class="nav-item {{ request()->routeIs('admin.banners.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.banners.index') }}">
+                                <i class="fas fa-images"></i>
+                                <p>Hero Banners</p>
+                            </a>
+                        </li>
+                        <li class="nav-item {{ request()->routeIs('admin.admin-messages.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.admin-messages.index') }}">
+                                <i class="fas fa-envelope"></i>
+                                <p>Admin Messages</p>
+                            </a>
+                        </li>
+
+                    </ul>
                 </div>
             </div>
         </div>
@@ -376,7 +366,7 @@
                                 <ul class="dropdown-menu dropdown-user animated fadeIn">
                                     <div class="dropdown-user-scroll scrollbar-outer">
                                         <li>
-                                          <!--   <div class="user-box">
+                                            <!--   <div class="user-box">
                                                 <div class="avatar-lg">
                                                     <img src="asset/img/profile.jpg" alt="image profile"
                                                         class="avatar-img rounded" />
@@ -397,12 +387,14 @@
                                             <div class="dropdown-divider"></div>
                                             <a class="dropdown-item" href="#">Account Setting</a>
                                             <div class="dropdown-divider"></div> -->
-<form method="POST" action="{{ route('admin.logout') }}">
-    @csrf
-    <button type="submit" class="dropdown-item border-0 bg-transparent w-100 text-start">
-        Logout
-    </button>
-</form>                                        </li>
+                                            <form method="POST" action="{{ route('admin.logout') }}">
+                                                @csrf
+                                                <button type="submit"
+                                                    class="dropdown-item border-0 bg-transparent w-100 text-start">
+                                                    Logout
+                                                </button>
+                                            </form>
+                                        </li>
                                     </div>
                                 </ul>
                             </li>
@@ -413,7 +405,7 @@
             </div>
 
             <div class="container">
-               @yield('body')
+                @yield('body')
             </div>
 
             <footer class="footer">
@@ -434,7 +426,7 @@
                         </ul>
                     </nav>
                     <div class="copyright">
-                        
+
                         Astraz Software Solutions
                         <a href="http://www.themekita.com"></a>
                     </div>
@@ -507,7 +499,7 @@
         <!-- End Custom template -->
     </div>
     <!--   Core JS Files   -->
-      <script src="{{ asset('asset/js/core/jquery-3.7.1.min.js') }}"></script>
+    <script src="{{ asset('asset/js/core/jquery-3.7.1.min.js') }}"></script>
     <script src="{{ asset('asset/js/core/popper.min.js') }}"></script>
     <script src="{{ asset('asset/js/core/bootstrap.min.js') }}"></script>
     <script src="{{ asset('asset/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js') }}"></script>
@@ -515,4 +507,5 @@
 
     @stack('scripts')
 </body>
+
 </html>

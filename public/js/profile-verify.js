@@ -1,15 +1,10 @@
+/* public/js/cchub/profile-verify.js  (replace the WHOLE old file with this)
+   Email OTP: Verify button -> send code -> popup -> verify.
+   No badge. Verify button shows only when the email is new/changed/unverified. */
 (() => {
-  const C = window.CCHUB || {};
-  const dlg = document.getElementById('emailOtpDialog');
-  if (!dlg) { console.warn('emailOtpDialog missing from page'); return; }
-
-  const form = document.getElementById('emailOtpForm');
-  const otpInput = document.getElementById('emailOtpInput');
-  const msg = document.getElementById('emailOtpMsg');
-  const resend = document.getElementById('emailOtpResend');
-  const subtitle = document.getElementById('emailOtpSubtitle');
-  let pendingEmail = '';
-  let timer = null;
+  const csrf = () =>
+    (window.CCHUB && window.CCHUB.csrf) ||
+    (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
   const emailField = (wrap) => wrap.querySelector('input:not([type="hidden"])');
   const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -20,7 +15,7 @@
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-CSRF-TOKEN': C.csrf,
+        'X-CSRF-TOKEN': csrf(),
         'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify(data),
@@ -28,18 +23,53 @@
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
       const first = json.errors ? Object.values(json.errors)[0]?.[0] : null;
-      throw new Error(first || json.message || `Error ${res.status}`);
+      throw new Error(first || json.message || `Request failed (${res.status})`);
     }
     return json;
   };
 
-  const say = (text, isError = false) => {
+  /* ---------- Verify button visibility ---------- */
+  const refreshButton = (wrap) => {
+    const btn = wrap.querySelector('.verify-btn');
+    const inp = emailField(wrap);
+    if (!btn || !inp) return;
+    const val = inp.value.trim().toLowerCase();
+    const same = val === (wrap.dataset.original || '').trim().toLowerCase();
+    const verified = wrap.dataset.verified === '1' && same;
+    btn.hidden = verified || val === '';
+  };
+
+  document.addEventListener('input', (e) => {
+    const wrap = e.target.closest && e.target.closest('[data-email-verify]');
+    if (wrap && e.target === emailField(wrap)) refreshButton(wrap);
+  });
+
+  const setVerified = (email) => {
+    document.querySelectorAll('[data-email-verify]').forEach((w) => {
+      w.dataset.original = email;
+      w.dataset.verified = '1';
+      const i = emailField(w);
+      if (i) i.value = email;
+      refreshButton(w);
+    });
+  };
+
+  /* ---------- OTP popup ---------- */
+  let pending = { email: '', sendUrl: '', verifyUrl: '' };
+  let timer = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  const say = (text, isError) => {
+    const msg = $('emailOtpMsg');
+    if (!msg) return;
     msg.hidden = !text;
     msg.textContent = text || '';
     msg.style.color = isError ? '#c0392b' : '';
   };
 
-  const startCooldown = (sec = 30) => {
+  const cooldown = (sec = 30) => {
+    const resend = $('emailOtpResend');
     clearInterval(timer);
     let left = sec;
     resend.disabled = true;
@@ -56,79 +86,80 @@
     }, 1000);
   };
 
-  const setState = (wrap, email, verified) => {
-    wrap.dataset.original = email;
-    wrap.dataset.verified = verified ? '1' : '0';
-    const inp = emailField(wrap);
-    if (inp) inp.value = email;
-    wrap.querySelector('.verified-badge').hidden = !verified;
-    wrap.querySelector('.verify-btn').hidden = verified || email === '';
+  const sendCode = async () => {
+    await post(pending.sendUrl, { email: pending.email });
+    cooldown();
   };
 
-  // Typing in the email field: hide badge, show Verify when changed
-  document.addEventListener('input', (e) => {
-    const wrap = e.target.closest('[data-email-verify]');
-    if (!wrap || e.target !== emailField(wrap)) return;
-
-    const val = e.target.value.trim().toLowerCase();
-    const changed = val !== (wrap.dataset.original || '').trim().toLowerCase();
-    const showBadge = wrap.dataset.verified === '1' && !changed;
-
-    wrap.querySelector('.verified-badge').hidden = !showBadge;
-    wrap.querySelector('.verify-btn').hidden = showBadge || val === '';
-  });
-
-  const sendOtp = async () => {
-    await post(C.emailOtpSendUrl, { email: pendingEmail });
-    startCooldown();
-  };
-
-  // Verify click: send OTP, open popup
+  // Click on Verify (capture so no other script can swallow it)
   document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.verify-btn[data-verify="email"]');
+    const btn = e.target.closest && e.target.closest('.verify-btn[data-verify="email"]');
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
 
+    const dlg = $('emailOtpDialog');
+    if (!dlg) {
+      alert('Verification popup is missing on this page. Please refresh and try again.');
+      return;
+    }
+
     const wrap = btn.closest('[data-email-verify]');
     const email = emailField(wrap).value.trim().toLowerCase();
-    if (!validEmail(email)) { alert('Enter a valid email address.'); return; }
+    if (!validEmail(email)) {
+      alert('Enter a valid email address first.');
+      return;
+    }
 
-    pendingEmail = email;
+    pending = { email, sendUrl: btn.dataset.sendUrl, verifyUrl: btn.dataset.verifyUrl };
+
+    const label = btn.textContent;
     btn.disabled = true;
+    btn.textContent = 'Sending...';
     try {
-      await sendOtp();
-      subtitle.textContent = `Enter the 6-digit code sent to ${email}`;
-      otpInput.value = '';
+      await sendCode();
+      $('emailOtpSubtitle').textContent = `Enter the 6-digit code sent to ${email}`;
+      $('emailOtpInput').value = '';
       say('');
-      dlg.showModal();
-      otpInput.focus();
+      if (!dlg.open) dlg.showModal();
+      $('emailOtpInput').focus();
     } catch (err) {
+      console.error('Send OTP failed:', err);
       alert(err.message);
     } finally {
       btn.disabled = false;
+      btn.textContent = label;
     }
   }, true);
 
-  resend.addEventListener('click', async () => {
-    try { await sendOtp(); say('A new code has been sent.'); }
-    catch (err) { say(err.message, true); }
+  document.addEventListener('click', async (e) => {
+    if (e.target.closest && e.target.closest('#emailOtpResend')) {
+      try { await sendCode(); say('A new code has been sent.'); }
+      catch (err) { say(err.message, true); }
+    }
+    if (e.target.closest && e.target.closest('#closeEmailOtp')) {
+      $('emailOtpDialog').close();
+    }
   });
 
-  form.addEventListener('submit', async (e) => {
+  document.addEventListener('submit', async (e) => {
+    if (e.target.id !== 'emailOtpForm') return;
     e.preventDefault();
     try {
-      const r = await post(C.emailOtpVerifyUrl, { email: pendingEmail, otp: otpInput.value.trim() });
-      document.querySelectorAll('[data-email-verify]').forEach((w) => setState(w, r.email, true));
-      dlg.close();
+      const r = await post(pending.verifyUrl, {
+        email: pending.email,
+        otp: $('emailOtpInput').value.trim(),
+      });
+      setVerified(r.email);
+      $('emailOtpDialog').close();
     } catch (err) {
       say(err.message, true);
     }
   });
 
-  otpInput.addEventListener('input', () => {
-    otpInput.value = otpInput.value.replace(/\D/g, '').slice(0, 6);
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'emailOtpInput') {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    }
   });
-
-  document.getElementById('closeEmailOtp').addEventListener('click', () => dlg.close());
 })();
