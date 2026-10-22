@@ -33,20 +33,57 @@ Route::get('/network', [NetworkingController::class, 'index'])->name('network');
 Route::get('/members/{user:uuid}', [MemberController::class, 'show'])->name('members.show');
 Route::get('/networking', [NetworkingController::class, 'index'])->name('networking.index');
 
+// Route::prefix('admin')->name('admin.')->group(function () {
+//     Route::get('/login', [AdminLoginController::class, 'showLogin'])->name('login');
+//     Route::post('/login', [AdminLoginController::class, 'login'])->name('login.submit');
+//     Route::resource('banners', BannerController::class)->only(['index', 'store', 'update', 'destroy']);
+//     Route::middleware(['auth', 'role:admin'])->group(function () {
+//         Route::post('/logout', [AdminLoginController::class, 'logout'])->name('logout');
+
+//         Route::resource('header-notice', HeaderNoticeController::class)
+//             ->only(['index', 'store', 'update', 'destroy'])
+//             ->parameters(['header-notice' => 'headerNotice']);
+//     });
+// });
+// Route::middleware('role:admin')->group(function () {
+//     Route::prefix('admin')->name('admin.')->group(function () {
+//         $types = ['rite', 'diocese', 'forane', 'parish'];
+//         Route::get('/church', [ChurchDirectoryController::class, 'index'])->name('church.index');
+//         Route::get('/church/options', [ChurchDirectoryController::class, 'options'])->name('church.options');
+//         Route::get('/church/{type}', [ChurchDirectoryController::class, 'list'])->whereIn('type', $types)->name('church.list');
+//         Route::post('/church/{type}', [ChurchDirectoryController::class, 'store'])->whereIn('type', $types)->name('church.store');
+//         Route::put('/church/{type}/{id}', [ChurchDirectoryController::class, 'update'])->whereIn('type', $types)->whereNumber('id')->name('church.update');
+//         Route::delete('/church/{type}/{id}', [ChurchDirectoryController::class, 'destroy'])->whereIn('type', $types)->whereNumber('id')->name('church.destroy');
+
+//         Route::resource('admin-messages', AdminMessageController::class)
+//             ->only(['index', 'store', 'update', 'destroy'])
+//             ->parameters(['admin-messages' => 'adminMessage']);
+
+//     });
+
+
+
+
+// });
 Route::prefix('admin')->name('admin.')->group(function () {
-    Route::get('/login', [AdminLoginController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AdminLoginController::class, 'login'])->name('login.submit');
-    Route::resource('banners', BannerController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::middleware(['auth', 'role:admin'])->group(function () {
+
+    // login pages: only for people NOT logged in as admin
+    Route::middleware('guest:admin')->group(function () {
+        Route::get('/login', [AdminLoginController::class, 'showLogin'])->name('login');
+        Route::post('/login', [AdminLoginController::class, 'login'])->name('login.submit');
+    });
+
+    // everything else: must be logged in on the admin guard
+    Route::middleware(['auth:admin', 'role:admin'])->group(function () {
+        Route::get('/', fn() => view('admin.dashboard'))->name('dashboard');
         Route::post('/logout', [AdminLoginController::class, 'logout'])->name('logout');
+
+        Route::resource('banners', BannerController::class)->only(['index', 'store', 'update', 'destroy']);
 
         Route::resource('header-notice', HeaderNoticeController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->parameters(['header-notice' => 'headerNotice']);
-    });
-});
-Route::middleware('role:admin')->group(function () {
-    Route::prefix('admin')->name('admin.')->group(function () {
+
         $types = ['rite', 'diocese', 'forane', 'parish'];
         Route::get('/church', [ChurchDirectoryController::class, 'index'])->name('church.index');
         Route::get('/church/options', [ChurchDirectoryController::class, 'options'])->name('church.options');
@@ -58,12 +95,7 @@ Route::middleware('role:admin')->group(function () {
         Route::resource('admin-messages', AdminMessageController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->parameters(['admin-messages' => 'adminMessage']);
-
     });
-
-
-
-
 });
 Route::middleware('role:member')->group(function () {
 });

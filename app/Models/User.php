@@ -142,6 +142,7 @@ public static function shareCandidates(User $me, ?string $q = null, int $limit =
     return static::query()
         ->with(['profile.job', 'presentAddress.district'])
         ->whereKeyNot($me->id)
+         ->nonAdmin()
         ->whereNotIn('id', $me->blockedIds())
         ->when($q, fn ($x) => $x->where('name', 'like', '%' . $q . '%'))
         ->orderByRaw('EXISTS (SELECT 1 FROM saved_profiles sp WHERE sp.user_id = ? AND sp.saved_user_id = users.id) DESC', [$me->id])
@@ -149,5 +150,12 @@ public static function shareCandidates(User $me, ?string $q = null, int $limit =
         ->limit($limit)
         ->get();
 }
-
+public function sharedProfiles()
+{
+    return $this->hasMany(SharedProfile::class, 'user_id');
+}
+public function scopeNonAdmin($q)
+{
+    return $q->whereDoesntHave('role', fn ($r) => $r->where('name', 'admin'));
+}
 }

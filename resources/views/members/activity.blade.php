@@ -4,6 +4,14 @@
 @php
   $noImg = asset('assets/images/no-image.avif');
   $me = auth()->user();
+  $p = $p ?? $me->profile;
+
+  // badges, same numbers as the profile page
+  $adminMessages = \App\Models\AdminMessage::where('user_id', $me->id)->latest()->limit(20)->get();
+  $conversations = \App\Models\Message::conversationsFor($me);
+  $unreadAdmin = $adminMessages->whereNull('read_at')->count();
+  $unreadChats = $conversations->where('unread', true)->count();
+  $profileUrl = route('members.show', $me->uuid);
 @endphp
 
 @section('title')My Activity — Networking Activities | CC Hub @endsection
@@ -14,34 +22,51 @@
 
 @section('page_css')
   <link rel="stylesheet" href="{{ asset('css/cchub/ch-profile.css') }}" />
+  {{-- styles for the Messages panel + Admin Messages dropdown (same file the profile page uses) --}}
+  <link rel="stylesheet" href="{{ asset('css/cchub/ch-profile-page.css') }}" />
   <link rel="stylesheet" href="{{ asset('css/cchub/ch-activity.css') }}" />
 @endsection
 
 @section('body_class')profile-page page-profile page-activity @endsection
 @section('nav_active', 'none')
 @section('no_login_modals')@endsection
+@section('body_attrs')data-owner="1" data-update-url="{{ route('profile.update') }}"@endsection
 
 @section('after_header')
   <nav class="app-nav" aria-label="Profile navigation">
     <div class="app-nav-inner">
-      <a href="{{ route('members.show', $me->uuid) }}#messages" class="app-nav-item" aria-label="Messages">
-        <span class="app-nav-icon app-nav-icon--messages"><i class="fa-regular fa-comments" aria-hidden="true"></i></span>
+      <a href="#messages" class="app-nav-item" id="openMessagesBtn" aria-label="Messages, {{ $unreadChats }} unread"
+        aria-controls="messagesPanel" aria-expanded="false" aria-haspopup="menu">
+        <span class="app-nav-icon app-nav-icon--messages">
+          <i class="fa-regular fa-comments" aria-hidden="true"></i>
+          @if ($unreadChats > 0)
+            <span class="app-nav-badge" aria-hidden="true">{{ $unreadChats }}</span>
+          @endif
+        </span>
         <span class="app-nav-label">Messages</span>
       </a>
-      <a href="{{ route('members.show', $me->uuid) }}#admin-messages" class="app-nav-item" aria-label="Admin Messages">
-        <span class="app-nav-icon app-nav-icon--admin"><i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i></span>
+      <a href="#admin-messages" class="app-nav-item" id="openAdminMessagesBtn"
+        aria-label="Admin Messages, {{ $unreadAdmin }} unread" aria-controls="adminMessagesDropdown"
+        aria-haspopup="dialog" aria-expanded="false">
+        <span class="app-nav-icon app-nav-icon--admin">
+          <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i>
+          @if ($unreadAdmin > 0)
+            <span class="app-nav-badge" aria-hidden="true">{{ $unreadAdmin }}</span>
+          @endif
+        </span>
         <span class="app-nav-label">Admin Messages</span>
       </a>
-      <a href="{{ route('members.show', $me->uuid) }}" class="app-nav-item" aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
+
+      <a href="{{ $profileUrl }}" class="app-nav-item" aria-label="Your profile" aria-haspopup="menu" aria-expanded="false">
         <span class="app-nav-avatar">
-          <img src="{{ $p->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="52" height="52" />
+          <img src="{{ $p?->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="52" height="52" />
         </span>
         <span class="app-nav-label">Profile</span>
       </a>
     </div>
 
     <div class="app-nav-dropdown" id="appNavDropdown" hidden role="menu" aria-label="Account menu">
-      <a href="{{ url('activity') }}" class="app-nav-dropdown-item is-active" role="menuitem" data-nav-action="activity">
+      <a href="{{ route('activity') }}" class="app-nav-dropdown-item is-active" role="menuitem" data-nav-action="activity">
         <span class="app-nav-dropdown-icon" aria-hidden="true"><i class="fa-solid fa-clock-rotate-left"></i></span>
         <span>Activity</span>
       </a>
@@ -53,6 +78,49 @@
       </a>
       <form id="logoutForm" method="POST" action="{{ route('logout') }}" hidden>@csrf</form>
     </div>
+
+      {{-- Admin messages dropdown --}}
+      <div class="admin-messages-dropdown" id="adminMessagesDropdown" hidden role="dialog"
+        aria-labelledby="adminMessagesTitle">
+        <header class="admin-messages-header">
+          <div class="admin-messages-heading">
+            <span class="admin-messages-heading-icon" aria-hidden="true">
+              <i class="fa-solid fa-shield-halved"></i>
+            </span>
+            <div>
+              <h2 id="adminMessagesTitle">Admin Messages</h2>
+              <p class="admin-messages-subtitle">Official updates from IBNCC</p>
+            </div>
+          </div>
+          <span class="admin-messages-count" id="adminMessagesCount">{{ $unreadAdmin }} new</span>
+        </header>
+
+        <ul class="admin-messages-list" id="adminMessagesList">
+          @forelse ($adminMessages as $am)
+            <li class="admin-message-item {{ $am->read_at ? '' : 'is-unread' }}">
+              <div class="admin-message-avatar" aria-hidden="true">
+                <i class="fa-solid fa-user-shield"></i>
+              </div>
+              <div class="admin-message-body">
+                <div class="admin-message-meta">
+                  <strong class="admin-message-sender">IBNCC Admin</strong>
+                  <time
+                    datetime="{{ $am->created_at->toIso8601String() }}">{{ $am->created_at->diffForHumans(null, true, true) }}
+                    ago</time>
+                </div>
+                <p class="admin-message-subject">{{ $am->subject }}</p>
+                <p class="admin-message-text">{{ $am->body }}</p>
+              </div>
+            </li>
+          @empty
+            <li class="admin-message-item">
+              <div class="admin-message-body">
+                <p class="admin-message-text">No admin messages yet.</p>
+              </div>
+            </li>
+          @endforelse
+        </ul>
+      </div>
   </nav>
 @endsection
 
@@ -173,14 +241,124 @@
 </div>
 @endsection
 
+@section('after_footer')
+    {{-- ===================== MESSAGES PANEL (owner) ===================== --}}
+    <div class="msg-panel-root" id="messagesPanel" hidden>
+      <div class="msg-panel-backdrop" data-msg-close tabindex="-1" aria-hidden="true"></div>
+      <aside class="msg-panel" role="dialog" aria-modal="true" aria-labelledby="messages-panel-title">
+        <div class="msg-panel-view" id="msgListView">
+          <header class="msg-panel-header">
+            <h2 id="messages-panel-title">Messages</h2>
+            <button type="button" class="msg-panel-close" data-msg-close aria-label="Close messages">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+          <ul class="msg-list" id="msgConversationList" role="list">
+            @forelse ($conversations as $c)
+              <li>
+                <button type="button" class="msg-row" data-chat-id="{{ $c->uuid }}" data-name="{{ $c->name }}"
+                  data-avatar="{{ $c->photo_url }}" data-status="{{ $c->preview }}" @if ($c->online) data-online="true" @endif
+                  @if ($c->unread) data-unread="true" @endif>
+                  <span class="msg-avatar-wrap {{ $c->unread ? 'is-story' : '' }}">
+                    <img src="{{ $c->photo_url }}" onerror="this.onerror=null;this.src='{{ $noImg }}'" alt="" width="56"
+                      height="56" />
+                    @if ($c->online)
+                      <span class="msg-online-dot" aria-hidden="true"></span>
+                    @endif
+                  </span>
+                  <span class="msg-row-copy">
+                    <span class="msg-row-name">{{ $c->name }}</span>
+                    <span class="msg-row-preview {{ $c->unread ? 'is-unread' : '' }}">{{ $c->preview }}</span>
+                  </span>
+                </button>
+              </li>
+            @empty
+              <li class="msg-empty">
+                <p>No conversations yet.</p>
+              </li>
+            @endforelse
+          </ul>
+        </div>
+
+        <div class="msg-panel-view" id="msgChatView" hidden>
+          <header class="msg-chat-header">
+            <button type="button" class="msg-chat-back" id="msgChatBack" aria-label="Back to messages">
+              <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            </button>
+            <div class="msg-chat-person">
+              <img id="msgChatAvatar" src="{{ $noImg }}" alt="" width="40" height="40" />
+              <div>
+                <strong id="msgChatName">Contact</strong>
+                <span id="msgChatStatus">Active now</span>
+              </div>
+            </div>
+            <button type="button" class="msg-panel-close" data-msg-close aria-label="Close messages">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+
+          <div class="msg-chat-log" id="msgChatLog" aria-live="polite"></div>
+          @foreach ($conversations as $c)
+            <div class="msg-thread" data-thread-id="{{ $c->uuid }}" hidden>
+              @php $lastDay = null; @endphp
+              @foreach ($c->messages as $msg)
+                @if ($lastDay !== $msg->day_label)
+                  @php $lastDay = $msg->day_label; @endphp
+                  <div class="msg-day-sep" role="separator"><time>{{ $msg->day_label }}</time></div>
+                @endif
+                <div class="msg-bubble {{ $msg->is_out ? 'is-out' : 'is-in' }}">
+                  <p class="msg-bubble-text">{{ $msg->body }}</p>
+                  <div class="msg-bubble-meta">
+                    <time>{{ $msg->time_label }}</time>
+                    @if ($msg->is_out)
+                      @php
+                        $st = $msg->status ?? 'sent';
+                        $stLabel = ['sent' => 'Sent', 'delivered' => 'Delivered', 'read' => 'Seen'][$st] ?? 'Sent';
+                      @endphp
+                      <span class="msg-ticks is-{{ $st === 'read' ? 'read' : $st }}" data-status="{{ $st }}"
+                        title="{{ $stLabel }}" aria-label="{{ $stLabel }}">
+                        <i class="fa-solid {{ $st === 'sent' ? 'fa-check' : 'fa-check-double' }}" aria-hidden="true"></i>
+                      </span>
+                    @endif
+                  </div>
+                </div>
+              @endforeach
+            </div>
+          @endforeach
+
+          <div class="msg-attach-preview" id="msgAttachPreview" aria-live="polite"></div>
+          <form class="msg-compose" id="msgChatForm" autocomplete="off">
+            <input type="file" id="msgFileInput" class="msg-file-input" accept="image/*,.pdf,.doc,.docx,.txt" multiple
+              tabindex="-1" aria-hidden="true" />
+            <button type="button" class="msg-icon-btn" id="msgAttachBtn" aria-label="Attach file or image">
+              <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
+            </button>
+            <textarea id="msgChatInput" rows="1" placeholder="Message…" aria-label="Type a message"></textarea>
+            <button type="submit" class="msg-icon-btn is-send" id="msgSendBtn" aria-label="Send message">
+              <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+            </button>
+          </form>
+        </div>{{-- /msgChatView --}}
+      </aside>
+    </div>{{-- /msg-panel-root --}}
+@endsection
+
 @section('scripts')
   <script>
     window.CCHUB = {
       csrf: @json(csrf_token()),
+      noImg: @json($noImg),
+      isOwner: true,
+      listUrl: @json(route('messages.index')),
+      threadUrl: @json(route('messages.thread', '__ID__')),
+      sendUrl: @json(route('messages.send', '__ID__')),
+      adminReadUrl: @json(route('admin-messages.read')),
+      shareUrl: @json(route('share.members')),
+      shareSendUrl: @json(route('members.share', '__ID__')),
       saveUrl: @json(route('members.save', '__ID__')),
       blockUrl: @json(route('members.block', '__ID__')),
     };
   </script>
   <script src="{{ asset('js/cchub/ch-profile.js') }}"></script>
-  <script src="{{ asset('js/cchub/activity-live.js') }}"></script>
+  <script src="{{ asset('js/cchub/activity-live.js') }}?v={{ file_exists(public_path('js/cchub/activity-live.js')) ? filemtime(public_path('js/cchub/activity-live.js')) : '1' }}"></script>
 @endsection

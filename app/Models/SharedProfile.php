@@ -12,9 +12,12 @@ class SharedProfile extends Model
     {
         return $this->belongsTo(User::class, 'shared_user_id');
     }
-
     public function recipient()
     {
         return $this->belongsTo(User::class, 'recipient_id');
+    }
+    public function sender()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

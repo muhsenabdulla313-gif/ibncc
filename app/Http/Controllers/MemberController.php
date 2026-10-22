@@ -18,7 +18,7 @@ public function me()
         if (! auth()->check()) {
     return redirect('/#login');
 }
-        abort_if($user->role?->name === 'guest', 404);
+    abort_if(in_array($user->role?->name, ['admin', 'guest'], true), 404);
 
         $user->load([
             'role', 'socialLinks', 'galleryImages',
@@ -35,7 +35,7 @@ public function me()
                 'presentAddress.state', 'presentAddress.district',
             ])
             ->where('id', '!=', $user->id)
-            ->whereHas('role', fn ($q) => $q->whereNotIn('name', ['admin', 'guest']))
+        ->whereHas('role', fn ($q) => $q->whereNotIn('name', ['admin', 'guest']))
             ->when($p->job_id, fn ($q, $jobId) => $q->whereHas('profile', fn ($pr) => $pr->where('job_id', $jobId)))
             ->limit(3)
             ->get();

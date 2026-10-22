@@ -497,40 +497,6 @@ class ProfileController extends Controller
     {
         throw ValidationException::withMessages([$field => $message]);
     }
-    public function savedProfiles()
-    {
-        return $this->belongsToMany(User::class, 'saved_profiles', 'user_id', 'saved_user_id')->withTimestamps();
-    }
+   
 
-    public function blockedUsers()
-    {
-        return $this->belongsToMany(User::class, 'blocked_profiles', 'user_id', 'blocked_user_id')->withTimestamps();
-    }
-
-    /** ids blocked by me OR who blocked me */
-    public function blockedIds(): array
-    {
-        return DB::table('blocked_profiles')->where('user_id', $this->id)->pluck('blocked_user_id')
-            ->merge(DB::table('blocked_profiles')->where('blocked_user_id', $this->id)->pluck('user_id'))
-            ->map(fn($i) => (int) $i)->unique()->values()->all();
-    }
-
-    public function hasBlocked(User $u): bool
-    {
-        return DB::table('blocked_profiles')->where('user_id', $this->id)->where('blocked_user_id', $u->id)->exists();
-    }
-
-    /** Share list: saved profiles FIRST, then everyone else A-Z */
-    public static function shareCandidates(User $me, ?string $q = null, int $limit = 20)
-    {
-        return static::query()
-            ->with(['profile.job', 'presentAddress.district'])
-            ->whereKeyNot($me->id)
-            ->whereNotIn('id', $me->blockedIds())
-            ->when($q, fn($x) => $x->where('name', 'like', '%' . $q . '%'))
-            ->orderByRaw('EXISTS (SELECT 1 FROM saved_profiles sp WHERE sp.user_id = ? AND sp.saved_user_id = users.id) DESC', [$me->id])
-            ->orderBy('name')
-            ->limit($limit)
-            ->get();
-    }
 }

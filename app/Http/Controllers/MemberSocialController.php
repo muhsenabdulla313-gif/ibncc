@@ -7,36 +7,50 @@ use App\Models\AdminMessage;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\SharedProfile;
-
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 class MemberSocialController extends Controller
 {
     private function other(string $uuid): User
-{
-    $u = User::where('uuid', $uuid)->whereKeyNot(auth()->id())->first();
+    {
+        $u = User::with('role')->where('uuid', $uuid)->whereKeyNot(auth()->id())->first();
 
-    abort_if(! $u, 422, 'Select a member first.');
+        abort_if(!$u, 422, 'Select a member first.');
+        abort_if($u->isAdmin(), 403, 'You cannot message an admin.');
 
-    return $u;
-}
+        return $u;
+    }
 
     private function status(Message $m): string
     {
         return $m->read_at ? 'read' : ($m->delivered_at ? 'delivered' : 'sent');
     }
 
+
+
+    /**
+     * Search for people who can receive a shared profile.
+     */
+
+
+
+    /**
+     * Share a member's profile with another member.
+     */
+
     private function payload(Message $m, User $me): array
     {
         $c = $m->created_at;
         return [
-            'id'     => $m->id,
-            'body'   => $m->body,
+            'id' => $m->id,
+            'body' => $m->body,
             'is_out' => $m->sender_id === $me->id,
             'status' => $this->status($m),
-            'time'   => $c->format('g:i A'),
-            'day'    => $c->isToday() ? 'Today' : ($c->isYesterday() ? 'Yesterday' : $c->format('j M Y')),
-            'attachments' => collect($m->attachments ?? [])->map(fn ($a) => [
+            'time' => $c->format('g:i A'),
+            'day' => $c->isToday() ? 'Today' : ($c->isYesterday() ? 'Yesterday' : $c->format('j M Y')),
+            'attachments' => collect($m->attachments ?? [])->map(fn($a) => [
                 'name' => $a['name'],
-                'url'  => asset('storage/' . $a['path']),
+                'url' => asset('storage/' . $a['path']),
                 'is_image' => $a['is_image'],
             ])->all(),
         ];
@@ -44,36 +58,59 @@ class MemberSocialController extends Controller
 
     /* ---------- save / block ---------- */
 
-    public function toggleSave(string $uuid)
-    {
-        $me = auth()->user();
-        $u = $this->other($uuid);
 
-        if (in_array($u->id, $me->blockedIds(), true)) {
-            return response()->json(['message' => 'Unblock this member first.'], 403);
+    public function toggleSave(Request $request, string $uuid): JsonResponse
+    {
+        $me = $request->user();
+        $target = User::where('uuid', $uuid)->firstOrFail();
+
+        abort_if($target->id === $me->id, 422, 'You cannot save your own profile.');
+
+        $row = ['user_id' => $me->id, 'saved_user_id' => $target->id];
+        $state = $request->input('state');            // 'on' | 'off' | null
+        $saved = DB::table('saved_profiles')->where($row)->exists();
+
+        if ($state === 'off' || ($state === null && $saved)) {
+            DB::table('saved_profiles')->where($row)->delete();      // <- removes it from the database
+            return response()->json(['saved' => false, 'message' => 'Removed from saved profiles.']);
         }
 
-        $me->savedProfiles()->toggle($u->id);
-
-        return response()->json(['saved' => $me->savedProfiles()->whereKey($u->id)->exists()]);
-    }
-
-    public function toggleBlock(string $uuid)
-    {
-        $me = auth()->user();
-        $u = $this->other($uuid);
-
-        if ($me->hasBlocked($u)) {
-            $me->blockedUsers()->detach($u->id);
-            return response()->json(['blocked' => false]);
+        if (!$saved) {
+            DB::table('saved_profiles')->insert($row + ['created_at' => now(), 'updated_at' => now()]);
         }
 
-        $me->blockedUsers()->syncWithoutDetaching([$u->id]);
-        $me->savedProfiles()->detach($u->id);
-
-        return response()->json(['blocked' => true]);
+        return response()->json(['saved' => true, 'message' => 'Profile saved.']);
     }
 
+    /** POST /profile/members/{uuid}/block */
+    public function toggleBlock(Request $request, string $uuid): JsonResponse
+    {
+        $me = $request->user();
+        $target = User::where('uuid', $uuid)->firstOrFail();
+
+        abort_if($target->id === $me->id, 422, 'You cannot block yourself.');
+
+        $row = ['user_id' => $me->id, 'blocked_user_id' => $target->id];
+        $state = $request->input('state');          // 'on' | 'off' | null
+        $blocked = DB::table('blocked_profiles')->where($row)->exists();
+
+        if ($state === 'off' || ($state === null && $blocked)) {
+            DB::table('blocked_profiles')->where($row)->delete();    // <- removes it from the database
+            return response()->json(['blocked' => false, 'message' => 'Member unblocked.']);
+        }
+
+        if (!$blocked) {
+            DB::table('blocked_profiles')->insert($row + ['created_at' => now(), 'updated_at' => now()]);
+        }
+
+        // blocking also removes any saved bookmark between the two of you
+        DB::table('saved_profiles')
+            ->where(fn($q) => $q->where(['user_id' => $me->id, 'saved_user_id' => $target->id]))
+            ->orWhere(fn($q) => $q->where(['user_id' => $target->id, 'saved_user_id' => $me->id]))
+            ->delete();
+
+        return response()->json(['blocked' => true, 'message' => 'Member blocked.']);
+    }
     /* ---------- messages ---------- */
 
     public function conversations()
@@ -110,10 +147,10 @@ class MemberSocialController extends Controller
 
         $statuses = Message::where('sender_id', $me->id)->where('receiver_id', $other->id)
             ->latest('id')->limit(50)->get()
-            ->mapWithKeys(fn ($m) => [$m->id => $this->status($m)]);
+            ->mapWithKeys(fn($m) => [$m->id => $this->status($m)]);
 
         return response()->json([
-            'messages' => $msgs->map(fn ($m) => $this->payload($m, $me))->values(),
+            'messages' => $msgs->map(fn($m) => $this->payload($m, $me))->values(),
             'statuses' => $statuses,
         ]);
     }
@@ -128,8 +165,8 @@ class MemberSocialController extends Controller
         }
 
         $request->validate([
-            'body'    => 'nullable|string|max:2000',
-            'files'   => 'nullable|array|max:5',
+            'body' => 'nullable|string|max:2000',
+            'files' => 'nullable|array|max:5',
             'files.*' => 'file|max:5120|mimes:jpg,jpeg,png,webp,avif,gif,pdf,doc,docx,txt',
         ]);
 
@@ -143,16 +180,26 @@ class MemberSocialController extends Controller
         }
 
         $body = trim((string) $request->input('body'));
-        if ($body === '' && ! $files) {
+        if ($body === '' && !$files) {
             return response()->json(['message' => 'Write a message or attach a file.'], 422);
         }
 
         $m = Message::create([
-            'sender_id'   => $me->id,
+            'sender_id' => $me->id,
             'receiver_id' => $other->id,
-            'body'        => $body ?: null,
+            'body' => $body ?: null,
             'attachments' => $files ?: null,
         ]);
+        if (preg_match('#/members/([0-9a-f\-]{36})#i', $body, $mm)) {
+            $shared = User::where('uuid', $mm[1])->first();
+            if ($shared && $shared->id !== $me->id) {
+                SharedProfile::firstOrCreate([
+                    'user_id' => $me->id,
+                    'shared_user_id' => $shared->id,
+                    'recipient_id' => $other->id,
+                ]);
+            }
+        }
 
         return response()->json(['message' => $this->payload($m, $me)]);
     }
@@ -172,10 +219,10 @@ class MemberSocialController extends Controller
         $me = auth()->user();
         $savedIds = $me->savedProfiles()->pluck('users.id')->all();
 
-        $items = User::shareCandidates($me, trim((string) $request->query('q')))->map(fn ($m) => [
-            'uuid'  => $m->uuid,
-            'name'  => $m->name,
-            'role'  => $m->profile?->job?->name ?: 'Member',
+        $items = User::shareCandidates($me, trim((string) $request->query('q')))->map(fn($m) => [
+            'uuid' => $m->uuid,
+            'name' => $m->name,
+            'role' => $m->profile?->job?->name ?: 'Member',
             'place' => $m->presentAddress?->district?->name,
             'photo' => $m->profile?->photo_url ?: asset('assets/images/no-image.avif'),
             'saved' => in_array($m->id, $savedIds, true),
@@ -184,30 +231,31 @@ class MemberSocialController extends Controller
         return response()->json(['members' => $items]);
     }
     public function share(Request $request, string $uuid)
-{
-    $me = auth()->user();
-    $request->validate(['to' => 'required|string']);
+    {
+        $me = auth()->user();
+        $request->validate(['to' => 'required|string']);
 
-    $profile = User::where('uuid', $uuid)->firstOrFail();
-    $to      = $this->other($request->input('to'));
-    $blocked = $me->blockedIds();
+        $profile = User::with('role')->where('uuid', $uuid)->firstOrFail();
+        abort_if($profile->isAdmin(), 403, 'This profile cannot be shared.');
+        $to = $this->other($request->input('to'));
+        $blocked = $me->blockedIds();
 
-    if (in_array($to->id, $blocked, true) || in_array($profile->id, $blocked, true)) {
-        return response()->json(['message' => "You can't share this profile."], 403);
+        if (in_array($to->id, $blocked, true) || in_array($profile->id, $blocked, true)) {
+            return response()->json(['message' => "You can't share this profile."], 403);
+        }
+
+        Message::create([
+            'sender_id' => $me->id,
+            'receiver_id' => $to->id,
+            'body' => "Check out {$profile->name}'s profile on CC Hub: " . route('members.show', $profile->uuid),
+        ]);
+
+        SharedProfile::create([
+            'user_id' => $me->id,
+            'shared_user_id' => $profile->id,
+            'recipient_id' => $to->id,
+        ]);
+
+        return response()->json(['ok' => true]);
     }
-
-    Message::create([
-        'sender_id'   => $me->id,
-        'receiver_id' => $to->id,
-        'body'        => "Check out {$profile->name}'s profile on CC Hub: " . route('members.show', $profile->uuid),
-    ]);
-
-    SharedProfile::create([
-        'user_id'        => $me->id,
-        'shared_user_id' => $profile->id,
-        'recipient_id'   => $to->id,
-    ]);
-
-    return response()->json(['ok' => true]);
-}
 }

@@ -87,59 +87,64 @@
   });
 
   /* ================= THREAD RENDERING ================= */
-  function bubble(m) {
-    const att = (m.attachments || []).map((a) => a.is_image
-      ? `<a href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.name)}" style="max-width:200px;border-radius:8px;display:block;margin-bottom:4px"></a>`
-      : `<a href="${esc(a.url)}" target="_blank" rel="noopener" style="display:block;margin-bottom:4px"><i class="fa-solid fa-file" aria-hidden="true"></i> ${esc(a.name)}</a>`).join('');
-    const tick = m.is_out
-      ? `<span class="msg-ticks is-${m.status}" data-status="${m.status}" title="${TICK[m.status]}" aria-label="${TICK[m.status]}"><i class="fa-solid ${m.status === 'sent' ? 'fa-check' : 'fa-check-double'}" aria-hidden="true"></i></span>`
-      : '';
-    return `<div class="msg-bubble ${m.is_out ? 'is-out' : 'is-in'}" data-id="${m.id}">${att}${m.body ? `<p class="msg-bubble-text">${linkify(m.body)}</p>` : ''}<div class="msg-bubble-meta"><time>${esc(m.time)}</time>${tick}</div></div>`;
+ function bubble(m, visitor) {
+  if (visitor) {
+    const att = (m.attachments || []).map((a) => `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join(' ');
+    return `<p class="other-chat-bubble ${m.is_out ? 'is-out' : 'is-in'}" data-id="${m.id}">${att}${m.body ? linkify(m.body) : ''}</p>`;
   }
+  const att = (m.attachments || []).map((a) => a.is_image
+    ? `<a href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.name)}" style="max-width:200px;border-radius:8px;display:block;margin-bottom:4px"></a>`
+    : `<a href="${esc(a.url)}" target="_blank" rel="noopener" style="display:block;margin-bottom:4px"><i class="fa-solid fa-file" aria-hidden="true"></i> ${esc(a.name)}</a>`).join('');
+  const tick = m.is_out
+    ? `<span class="msg-ticks is-${m.status}" data-status="${m.status}" title="${TICK[m.status]}" aria-label="${TICK[m.status]}"><i class="fa-solid ${m.status === 'sent' ? 'fa-check' : 'fa-check-double'}" aria-hidden="true"></i></span>`
+    : '';
+  return `<div class="msg-bubble ${m.is_out ? 'is-out' : 'is-in'}" data-id="${m.id}">${att}${m.body ? `<p class="msg-bubble-text">${linkify(m.body)}</p>` : ''}<div class="msg-bubble-meta"><time>${esc(m.time)}</time>${tick}</div></div>`;
+}
 
-  function createThread(box, uuid) {
-    let last = 0;
-    let day = '';
-    return {
-      uuid,
-      reset() { last = 0; day = ''; box.innerHTML = ''; },
-      add(msgs) {
-        const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || last === 0;
-        let added = false;
-        msgs.forEach((m) => {
-          if (box.querySelector(`[data-id="${m.id}"]`)) return;
-          if (m.day !== day) {
-            day = m.day;
-            box.insertAdjacentHTML('beforeend', `<div class="msg-day-sep" role="separator"><time>${esc(m.day)}</time></div>`);
-          }
-          box.insertAdjacentHTML('beforeend', bubble(m));
-          last = Math.max(last, m.id);
-          added = true;
-        });
-        if (added) $('#otherChatEmpty')?.remove();
-        if (added && nearBottom) box.scrollTop = box.scrollHeight;
-      },
-      ticks(map) {
-        Object.entries(map || {}).forEach(([id, st]) => {
-          const t = $(`[data-id="${id}"] .msg-ticks`, box);
-          if (!t || t.dataset.status === st) return;
-          t.dataset.status = st;
-          t.className = `msg-ticks is-${st}`;
-          t.title = TICK[st];
-          t.innerHTML = `<i class="fa-solid ${st === 'sent' ? 'fa-check' : 'fa-check-double'}" aria-hidden="true"></i>`;
-        });
-      },
-      async poll() {
-        const d = await api(`${fill(C.threadUrl, uuid)}?after=${last}`);
-        this.add(d.messages);
-        this.ticks(d.statuses);
-      },
-      async send(fd) {
-        const d = await api(fill(C.sendUrl, uuid), { method: 'POST', body: fd });
-        this.add([d.message]);
-      },
-    };
-  }
+function createThread(box, uuid) {
+  const visitor = box.id === 'otherChatMessages';
+  let last = 0;
+  let day = '';
+  return {
+    uuid,
+    reset() { last = 0; day = ''; box.innerHTML = ''; },
+    add(msgs) {
+      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80 || last === 0;
+      let added = false;
+      msgs.forEach((m) => {
+        if (box.querySelector(`[data-id="${m.id}"]`)) return;
+        if (!visitor && m.day !== day) {
+          day = m.day;
+          box.insertAdjacentHTML('beforeend', `<div class="msg-day-sep" role="separator"><time>${esc(m.day)}</time></div>`);
+        }
+        box.insertAdjacentHTML('beforeend', bubble(m, visitor));
+        last = Math.max(last, m.id);
+        added = true;
+      });
+      if (added) $('#otherChatEmpty')?.remove();
+      if (added && nearBottom) box.scrollTop = box.scrollHeight;
+    },
+    ticks(map) {
+      Object.entries(map || {}).forEach(([id, st]) => {
+        const t = $(`[data-id="${id}"] .msg-ticks`, box);
+        if (!t || t.dataset.status === st) return;
+        t.dataset.status = st;
+        t.className = `msg-ticks is-${st}`;
+        t.title = TICK[st];
+        t.innerHTML = `<i class="fa-solid ${st === 'sent' ? 'fa-check' : 'fa-check-double'}" aria-hidden="true"></i>`;
+      });
+    },
+    async poll() {
+      const d = await api(`${fill(C.threadUrl, uuid)}?after=${last}`);
+      this.add(d.messages);
+      this.ticks(d.statuses);
+    },
+    async send(fd) {
+      const d = await api(fill(C.sendUrl, uuid), { method: 'POST', body: fd });
+      this.add([d.message]);
+    },
+  };
+}
 
   /* ================= OWNER MESSAGES PANEL ================= */
   const panel = $('#messagesPanel');
@@ -342,19 +347,18 @@
   });
 
   // Send button must be registered BEFORE the row handler (it sits inside the row)
-  own('click', '.share-profile-send', async (e, btn) => {
-    const li = btn.closest('.share-profile-result');
-    btn.disabled = true;
-    try {
-      const fd = new FormData();
-      fd.append('body', `Check out ${shareDrop.dataset.profileName}'s profile on CC Hub: ${profileHref()}`);
-      await api(fill(C.sendUrl, li.dataset.uuid), { method: 'POST', body: fd });
-      btn.textContent = 'Sent ✓';
-    } catch (err) {
-      btn.disabled = false;
-      throw err;
-    }
-  });
+ own('click', '.share-profile-send', async (e, btn) => {
+  const li = btn.closest('.share-profile-result');
+  if (!li?.dataset.uuid) throw new Error('This member cannot be messaged.');
+  btn.disabled = true;
+  try {
+    await api(fill(C.shareSendUrl, shareDrop.dataset.profileUuid), { method: 'POST', body: { to: li.dataset.uuid } });
+    btn.textContent = 'Sent ✓';
+  } catch (err) {
+    btn.disabled = false;
+    throw err;
+  }
+});
 
   own('click', '.share-profile-result', (e, li) => {
     $$('.share-profile-result', resultsEl).forEach((r) => {

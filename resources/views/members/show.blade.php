@@ -1420,12 +1420,12 @@
       shareSendUrl: @json(route('members.share', '__ID__')),
     };
   </script>
-  <script src="{{ asset('js/cchub/ch-profile.js') }}"></script>
-  <script src="{{ asset('js/cchub/profile-save.js') }}"></script>
-  @unless ($isOwner)
-    <script src="{{ asset('js/cchub/ch-other-profile.js') }}"></script>
-  @endunless
-  <script src="{{ asset('js/cchub/profile-social.js') }}"></script>
+  <script src="{{ asset('js/cchub/ch-profile.js') }}?v={{ filemtime(public_path('js/cchub/ch-profile.js')) }}"></script>
+<script src="{{ asset('js/cchub/profile-save.js') }}?v={{ filemtime(public_path('js/cchub/profile-save.js')) }}"></script>
+@unless ($isOwner)
+  <script src="{{ asset('js/cchub/ch-other-profile.js') }}?v={{ filemtime(public_path('js/cchub/ch-other-profile.js')) }}"></script>
+@endunless
+<script src="{{ asset('js/cchub/profile-social.js') }}?v={{ filemtime(public_path('js/cchub/profile-social.js')) }}"></script>
   @if ($isOwner)
     <script src="{{ asset('js/cchub/profile-limits.js') }}?v={{ file_exists(public_path('js/cchub/profile-limits.js')) ? filemtime(public_path('js/cchub/profile-limits.js')) : '1' }}"></script>
   @endif
