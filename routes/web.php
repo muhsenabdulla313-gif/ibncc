@@ -15,6 +15,8 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\ChurchDirectoryController;
 use App\Http\Middleware\EnsureAdmin;
+use App\Http\Controllers\Admin\UserCrudController;
+
 require __DIR__ . '/auth.php';
 
 Route::get('/', function () {
@@ -83,6 +85,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('header-notice', HeaderNoticeController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->parameters(['header-notice' => 'headerNotice']);
+
+        Route::get('/users', [UserCrudController::class, 'index'])->name('users.index');
+        Route::get('/users/data', [UserCrudController::class, 'data'])->name('users.data');
+        Route::post('/users', [UserCrudController::class, 'store'])->name('users.store');
+        Route::get('/users/{id}', [UserCrudController::class, 'show'])->whereNumber('id')->name('users.show');
+        Route::put('/users/{id}', [UserCrudController::class, 'update'])->whereNumber('id')->name('users.update');
+        Route::delete('/users/{id}', [UserCrudController::class, 'destroy'])->whereNumber('id')->name('users.destroy');
 
         $types = ['rite', 'diocese', 'forane', 'parish'];
         Route::get('/church', [ChurchDirectoryController::class, 'index'])->name('church.index');
@@ -154,6 +163,11 @@ Route::middleware('auth')->prefix('profile')->group(function () {
     Route::get('share/members', [Social::class, 'shareSearch'])->name('share.members');
     Route::get('activity', [ActivityController::class, 'index'])->name('activity');
 });
+
+
+
+
+
 
 
 
