@@ -1,0 +1,370 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        /* ------------------------------------------------------------------
+         | CATALOG BASICS
+         * ------------------------------------------------------------------ */
+
+        Schema::create('categories', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('parent_id')->nullable()->constrained('categories')->restrictOnDelete();
+            $t->string('name');
+            $t->string('slug')->unique();
+            $t->string('path')->nullable()->index();          // materialized path e.g. "1/5/12/"
+            $t->unsignedTinyInteger('depth')->default(0);
+            $t->text('description')->nullable();
+            $t->string('image')->nullable();
+            $t->string('meta_title')->nullable();
+            $t->string('meta_description', 500)->nullable();
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->boolean('is_active')->default(true);
+            $t->timestamps();
+            $t->index(['parent_id', 'is_active', 'sort_order']);
+        });
+
+        Schema::create('brands', function (Blueprint $t) {
+            $t->id();
+            $t->string('name')->unique();
+            $t->string('slug')->unique();
+            $t->string('logo')->nullable();
+            $t->boolean('is_active')->default(true);
+            $t->timestamps();
+        });
+
+        // Units with conversion: 1 ton = 1000 kg, 1 dozen = 12 piece, 1 thousand = 1000 piece
+        Schema::create('units', function (Blueprint $t) {
+            $t->id();
+            $t->string('name')->unique();
+            $t->string('short_name', 20);
+            $t->enum('type', ['count', 'weight', 'length', 'area', 'volume', 'pack'])->default('count');
+            $t->foreignId('base_unit_id')->nullable()->constrained('units')->nullOnDelete();
+            $t->decimal('conversion_factor', 14, 6)->default(1);   // how many base units in 1 of this unit
+            $t->boolean('allow_decimal')->default(false);
+            $t->timestamps();
+        });
+
+        /* ------------------------------------------------------------------
+         | ATTRIBUTE SYSTEM (works for any category: furniture, plants, bricks...)
+         * ------------------------------------------------------------------ */
+
+        Schema::create('attribute_groups', function (Blueprint $t) {
+            $t->id();
+            $t->string('name');                                   // General, Dimensions, Material, Care
+            $t->string('slug')->unique();
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->timestamps();
+        });
+
+        Schema::create('attributes', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('attribute_group_id')->nullable()->constrained('attribute_groups')->nullOnDelete();
+            $t->foreignId('unit_id')->nullable()->constrained('units')->nullOnDelete();   // mm, cm, kg for number types
+            $t->string('name');
+            $t->string('slug')->unique();
+            $t->enum('input_type', ['text', 'textarea', 'number', 'select', 'multiselect', 'boolean', 'color', 'date']);
+            $t->boolean('is_filterable')->default(false);
+            $t->boolean('is_searchable')->default(false);
+            $t->boolean('is_comparable')->default(false);
+            $t->boolean('is_variant_axis')->default(false);       // used to generate variants (Color, Size)
+            $t->boolean('is_visible')->default(true);             // show on product page
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->timestamps();
+        });
+
+        Schema::create('attribute_options', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('attribute_id')->constrained()->cascadeOnDelete();
+            $t->string('label');
+            $t->string('value', 100);
+            $t->string('color_hex', 9)->nullable();
+            $t->string('image')->nullable();
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->timestamps();
+            $t->unique(['attribute_id', 'value']);
+        });
+
+        // Which attributes a category uses. Children inherit from parents in application code.
+        Schema::create('category_attributes', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('category_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('attribute_id')->constrained()->cascadeOnDelete();
+            $t->boolean('is_required')->default(false);
+            $t->boolean('is_filterable')->nullable();             // NULL = use attribute default
+            $t->boolean('is_variant_axis')->nullable();           // NULL = use attribute default
+            $t->enum('applies_to', ['retail', 'wholesale', 'both'])->default('both');
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->timestamps();
+            $t->unique(['category_id', 'attribute_id']);
+        });
+
+        /* ------------------------------------------------------------------
+         | PRODUCTS
+         * ------------------------------------------------------------------ */
+
+        Schema::create('products', function (Blueprint $t) {
+            $t->id();
+            $t->uuid('uuid')->unique();
+            $t->foreignId('user_id')->constrained()->restrictOnDelete();      // seller
+            $t->foreignId('category_id')->constrained()->restrictOnDelete();
+            $t->foreignId('brand_id')->nullable()->constrained()->nullOnDelete();
+            $t->foreignId('unit_id')->constrained()->restrictOnDelete();
+            $t->string('title', 300);
+            $t->string('slug')->unique();
+            $t->string('model_no')->nullable();
+            $t->text('short_description')->nullable();
+            $t->longText('description')->nullable();
+            $t->enum('sale_type', ['retail', 'wholesale', 'both'])->default('retail');
+            $t->decimal('pack_qty', 12, 3)->default(1);
+            // wholesale: minimum order. both: qty at/above this uses wholesale pricing. retail: keep 1
+            $t->decimal('min_order_qty', 12, 3)->default(1);
+            $t->decimal('max_order_qty', 12, 3)->nullable();                  // NULL = no max
+            $t->boolean('track_stock')->default(true);
+            // tax
+            $t->string('hsn_code', 20)->nullable();
+            $t->decimal('tax_rate', 5, 2)->default(0);                        // GST %
+            $t->boolean('price_includes_tax')->default(true);
+            $t->string('offer_text')->nullable();
+            $t->boolean('is_featured')->default(false);
+            $t->boolean('is_assured')->default(false);
+            $t->decimal('rating_avg', 3, 2)->default(0);
+            $t->unsignedInteger('rating_count')->default(0);
+            // moderation / publishing
+            $t->enum('status', ['draft', 'pending', 'active', 'rejected', 'inactive'])->default('pending');
+            $t->string('rejection_reason', 500)->nullable();
+            $t->timestamp('published_at')->nullable();
+            // seo
+            $t->string('meta_title')->nullable();
+            $t->string('meta_description', 500)->nullable();
+            $t->timestamps();
+            $t->softDeletes();
+            $t->index(['category_id', 'status']);
+            $t->index(['sale_type', 'status']);
+            $t->index(['user_id', 'status']);
+            $t->index(['brand_id', 'status']);
+            $t->fullText('title');
+        });
+
+        Schema::create('product_variants', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->string('sku')->unique();
+            $t->string('barcode', 64)->nullable();
+            $t->json('options')->nullable();                 // display cache only: {"color":"Blue","size":"M"}
+            $t->decimal('mrp', 12, 2)->nullable();
+            $t->decimal('price', 12, 2)->nullable();         // base retail price per unit
+            $t->decimal('cost_price', 12, 2)->nullable();    // seller internal
+            $t->decimal('stock', 12, 3)->default(0); // measured in products.stock_unit_id
+            $t->decimal('reserved_stock', 12, 3)->default(0); // reserved for pending orders
+            $t->decimal('low_stock_alert', 12, 3)->nullable();
+            // logistics (kg / cm)
+            $t->decimal('weight', 10, 3)->nullable();
+            $t->decimal('length', 10, 2)->nullable();
+            $t->decimal('width', 10, 2)->nullable();
+            $t->decimal('height', 10, 2)->nullable();
+            $t->boolean('is_default')->default(false);
+            $t->boolean('is_active')->default(true);
+            $t->timestamps();
+            $t->index(['product_id', 'is_active']);
+        });
+
+        // Typed values for the spec sheet and filters (replaces product_specs)
+        Schema::create('product_attribute_values', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('attribute_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('attribute_option_id')->nullable()->constrained('attribute_options')->cascadeOnDelete();
+            $t->string('value_text', 500)->nullable();
+            $t->decimal('value_number', 18, 4)->nullable();
+            $t->boolean('value_bool')->nullable();
+            $t->date('value_date')->nullable();
+            $t->timestamps();
+            $t->index(['attribute_id', 'attribute_option_id'], 'pav_attr_option');   // option filters
+            $t->index(['attribute_id', 'value_number'], 'pav_attr_number');          // range filters
+            $t->index(['product_id', 'attribute_id'], 'pav_product_attr');
+        });
+
+        // Option chosen per axis for each variant (Color=Blue, Size=M)
+        Schema::create('variant_attribute_values', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('variant_id')->constrained('product_variants')->cascadeOnDelete();
+            $t->foreignId('attribute_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('attribute_option_id')->constrained('attribute_options')->restrictOnDelete();
+            $t->timestamps();
+            $t->unique(['variant_id', 'attribute_id']);
+            $t->index(['attribute_id', 'attribute_option_id'], 'vav_attr_option');
+        });
+
+        Schema::create('product_price_tiers', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('variant_id')->nullable()->constrained('product_variants')->cascadeOnDelete();
+            $t->enum('price_type', ['retail', 'wholesale']);
+            $t->decimal('min_qty', 12, 3);
+            $t->decimal('max_qty', 12, 3)->nullable();       // NULL = and above
+            $t->decimal('price', 12, 4);
+$t->unsignedBigInteger('variant_key')->virtualAs('IFNULL(variant_id, 0)');
+            $t->timestamps();
+            $t->unique(['product_id', 'variant_key', 'price_type', 'min_qty'], 'tier_unique');
+        });
+
+        Schema::create('product_images', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('variant_id')->nullable()->constrained('product_variants')->nullOnDelete();
+            $t->string('path');
+            $t->string('alt')->nullable();
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->boolean('is_primary')->default(false);
+            $t->timestamps();
+        });
+
+        Schema::create('product_videos', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->string('url', 500);
+            $t->enum('provider', ['youtube', 'vimeo', 'upload'])->default('youtube');
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->timestamps();
+        });
+
+        Schema::create('product_documents', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->string('title');                              // Spec sheet, Test certificate, Manual
+            $t->string('path');
+            $t->unsignedInteger('sort_order')->default(0);
+            $t->timestamps();
+        });
+
+        Schema::create('tags', function (Blueprint $t) {
+            $t->id();
+            $t->string('name')->unique();
+            $t->string('slug')->unique();
+            $t->timestamps();
+        });
+
+        Schema::create('product_tag', function (Blueprint $t) {
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('tag_id')->constrained()->cascadeOnDelete();
+            $t->primary(['product_id', 'tag_id']);
+        });
+
+        Schema::create('stock_movements', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('variant_id')->constrained('product_variants')->cascadeOnDelete();
+            $t->foreignId('user_id')->nullable()->constrained()->nullOnDelete();   // who changed it
+            $t->enum('type', ['initial', 'adjustment', 'sale', 'cancel', 'return']);
+            $t->decimal('qty_change', 12, 3);                 // negative for outgoing
+            $t->decimal('qty_after', 12, 3);
+            $t->string('note')->nullable();
+            $t->nullableMorphs('reference');                  // e.g. order_items row
+            $t->timestamps();
+            $t->index(['variant_id', 'created_at']);
+        });
+
+        /* ------------------------------------------------------------------
+         | ENGAGEMENT
+         * ------------------------------------------------------------------ */
+
+        Schema::create('product_reviews', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $t->unsignedTinyInteger('rating');
+            $t->string('title')->nullable();
+            $t->text('comment')->nullable();
+            $t->boolean('is_verified_purchase')->default(false);
+            $t->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
+            $t->timestamps();
+            $t->unique(['product_id', 'user_id']);
+            $t->index(['product_id', 'status']);
+        });
+
+        Schema::create('wishlists', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->timestamps();
+            $t->unique(['user_id', 'product_id']);
+        });
+
+        Schema::create('cart_items', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('variant_id')->constrained('product_variants')->cascadeOnDelete(); // required
+            $t->decimal('qty', 12, 3);
+            $t->timestamps();
+            $t->unique(['user_id', 'variant_id']);
+        });
+
+        /* ------------------------------------------------------------------
+         | ORDERS
+         * ------------------------------------------------------------------ */
+
+        Schema::create('orders', function (Blueprint $t) {
+            $t->id();
+            $t->string('order_no')->unique();
+            $t->foreignId('buyer_id')->constrained('users')->restrictOnDelete();
+            // buyer contact snapshot (sellers use this to contact the buyer)
+            $t->string('buyer_name');
+            $t->string('buyer_phone', 20);
+            $t->string('buyer_email')->nullable();
+            $t->json('shipping_address');
+            $t->text('buyer_note')->nullable();
+            $t->decimal('tax_total', 14, 2)->default(0);
+            $t->decimal('total', 14, 2);
+            $t->enum('status', ['placed', 'processing', 'completed', 'cancelled'])->default('placed');
+            $t->timestamps();
+            $t->index(['buyer_id', 'status']);
+        });
+
+        Schema::create('order_items', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('order_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('product_id')->constrained()->restrictOnDelete();
+            $t->foreignId('variant_id')->nullable()->constrained('product_variants')->nullOnDelete();
+            $t->foreignId('seller_id')->constrained('users')->restrictOnDelete();
+            // seller contact snapshot (buyer sees this)
+            $t->string('seller_name');
+            $t->string('seller_phone', 20)->nullable();
+            // product snapshot
+            $t->string('title', 300);
+            $t->string('sku')->nullable();
+            $t->json('options')->nullable();
+            $t->string('unit_name', 50);
+            $t->string('hsn_code', 20)->nullable();
+            $t->enum('price_type', ['retail', 'wholesale']);
+            $t->decimal('qty', 12, 3);
+            $t->decimal('unit_price', 12, 4);
+            $t->decimal('tax_rate', 5, 2)->default(0);
+            $t->decimal('tax_amount', 14, 2)->default(0);
+            $t->decimal('line_total', 14, 2);
+            $t->enum('status', ['placed', 'contacted', 'confirmed', 'shipped', 'delivered', 'cancelled'])->default('placed');
+            $t->text('seller_note')->nullable();
+            $t->timestamp('contacted_at')->nullable();
+            $t->timestamps();
+            $t->index(['seller_id', 'status']);
+        });
+    }
+
+    public function down(): void
+    {
+        foreach ([
+            'order_items', 'orders', 'cart_items', 'wishlists', 'product_reviews',
+            'stock_movements', 'product_tag', 'tags', 'product_documents', 'product_videos',
+            'product_images', 'product_price_tiers', 'variant_attribute_values',
+            'product_attribute_values', 'product_variants', 'products',
+            'category_attributes', 'attribute_options', 'attributes', 'attribute_groups',
+            'units', 'brands', 'categories',
+        ] as $table) {
+            Schema::dropIfExists($table);
+        }
+    }
+};

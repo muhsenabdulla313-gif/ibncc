@@ -9,18 +9,22 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
- public function run(): void
+    public function run(): void
     {
         $this->call(RoleSeeder::class);
-         $this->call(LookupSeeder::class);
+        $this->call(LookupSeeder::class);
         $this->call(KeralachurchSeeder::class);
+        $this->call(EventSeeder::class);
+        $this->call(MarketplaceDemoSeeder::class);
+        $this->call(MarketplaceCatalogSeeder::class);
+
 
         User::firstOrCreate(
             ['email' => 'admin@ibncc.com'],
             [
                 'role_id' => Role::where('name', 'admin')->first()->id,
                 'name' => 'Admin',
-                'password' => 'admin@123', 
+                'password' => 'admin@123',
             ]
         );
     }

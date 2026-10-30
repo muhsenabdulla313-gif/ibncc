@@ -16,7 +16,8 @@ use App\Http\Controllers\Admin\AdminMessageController;
 use App\Http\Controllers\Admin\ChurchDirectoryController;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Controllers\Admin\UserCrudController;
-
+use App\Http\Controllers\EventController;
+use App\Http\Controllers\Admin\EventController as AdminEventController;
 require __DIR__ . '/auth.php';
 
 Route::get('/', function () {
@@ -34,6 +35,9 @@ Route::get('/admin', function () {
 Route::get('/network', [NetworkingController::class, 'index'])->name('network');
 Route::get('/members/{user:uuid}', [MemberController::class, 'show'])->name('members.show');
 Route::get('/networking', [NetworkingController::class, 'index'])->name('networking.index');
+
+Route::get('/events/{event:slug}', [EventController::class, 'show'])->name('events.show');
+
 
 // Route::prefix('admin')->name('admin.')->group(function () {
 //     Route::get('/login', [AdminLoginController::class, 'showLogin'])->name('login');
@@ -79,7 +83,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware(['auth:admin', 'role:admin'])->group(function () {
         Route::get('/', fn() => view('admin.dashboard'))->name('dashboard');
         Route::post('/logout', [AdminLoginController::class, 'logout'])->name('logout');
-
+        Route::delete('events/images/{image}', [AdminEventController::class, 'destroyImage'])->name('events.images.destroy');
+        Route::resource('events', AdminEventController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::resource('banners', BannerController::class)->only(['index', 'store', 'update', 'destroy']);
 
         Route::resource('header-notice', HeaderNoticeController::class)
@@ -163,6 +168,10 @@ Route::middleware('auth')->prefix('profile')->group(function () {
     Route::get('share/members', [Social::class, 'shareSearch'])->name('share.members');
     Route::get('activity', [ActivityController::class, 'index'])->name('activity');
 });
+
+
+
+
 
 
 

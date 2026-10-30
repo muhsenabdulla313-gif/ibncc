@@ -19,9 +19,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="stylesheet" href="css/cchub/ch-login.css" />
-  <link rel="icon" type="image/png" href="assets/images/logo.png" />
+  <link rel="stylesheet" href="{{ asset('css/style.css') }}" />
+  <link rel="stylesheet" href="{{ asset('css/cchub/ch-login.css') }}" />
+  <link rel="icon" type="image/png" href="{{ asset('assets/images/logo.png') }}" />
 </head>
 
 <body>
@@ -49,9 +49,9 @@
   <header class="site-header" id="site-header">
     <div class="header-inner">
       <a href="#home" class="brand" aria-label="IBNCC Home">
-        <!-- <img src="assets/images/logo_full.png" alt="IBNCC logo" class="brand-logo" width="52" height="52" /> -->
+        <!-- <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC logo" class="brand-logo" width="52" height="52" /> -->
         <span class="brand-text">
-          <img src="assets/images/logo_full.png" alt="IBNCC logo" class="brand-logo" width="52" height="52" />
+          <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC logo" class="brand-logo" width="52" height="52" />
           <!-- <span class="brand-name">IBNCC</span> -->
           <span class="brand-tagline">AN INITIATIVE OF CATHOLIC CONGRESS</span>
         </span>
@@ -159,7 +159,7 @@
       <div class="container footer-grid">
         <div class="footer-brand">
           <div class="footer-brand-inner">
-            <img src="assets/images/logo_full.png" alt="IBNCC" width="56" height="56" />
+            <img src="{{ asset('assets/images/logo_full.png') }}" alt="IBNCC" width="56" height="56" />
             <div>
               <strong class="footer-tagline">International Business Network <br> of Catholic Congress</strong>
               <!-- <span>International Business Network</span> -->
@@ -219,10 +219,40 @@
   </button>
 
 @include('components.auth-modals')
+  <dialog class="event-slider" id="eventSlider" aria-labelledby="eventSliderTitle">
+    <div class="event-slider-panel">
+      <header class="event-slider-head">
+        <div class="event-slider-heading">
+          <h3 class="event-slider-title" id="eventSliderTitle"></h3>
+          <div class="event-slider-details"></div>
+        </div>
+        <div class="event-slider-tools">
+          <button type="button" class="event-slider-tool" data-slider-expand aria-pressed="false" aria-label="Expand slider">
+            <i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="event-slider-tool" data-slider-close aria-label="Close slider">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
 
-  <script src="js/script.js" defer></script>
-  <script src="js/cchub/ch-login.js" defer></script>
-      <script src="js/previous-events-slider.js" defer></script>
+      <div class="event-slider-stage">
+        <div class="event-slider-viewport">
+          <div class="event-slider-track" aria-live="polite"></div>
+        </div>
+        <button type="button" class="event-slider-arrow event-slider-prev" data-slider-prev aria-label="Previous image">
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="event-slider-arrow event-slider-next" data-slider-next aria-label="Next image">
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </button>
+        <span class="event-slider-counter" aria-hidden="true"></span>
+      </div>
+    </div>
+  </dialog>
+  <script src="{{ asset('js/script.js') }}" defer></script>
+  <script src="{{ asset('js/cchub/ch-login.js') }}" defer></script>
+      <script src="{{ asset('js/previous-events-slider.js') }}" defer></script>
 
 </body>
 
