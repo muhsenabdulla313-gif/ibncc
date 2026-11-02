@@ -34,10 +34,14 @@ class Attribute extends Model
     }
 
     public function categories()
-    {
-        return $this->belongsToMany(Category::class, 'category_attributes');
-    }
-
+{
+    return $this->belongsToMany(
+        Category::class,
+        'category_attributes',
+        'attribute_id',
+        'category_id'
+    )->withPivot('applies_to');
+}
     public function productValues()
     {
         return $this->hasMany(ProductAttributeValue::class);

@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\HeaderNoticeController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\MyAccountController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TradingController;
 use App\Http\Controllers\MemberSocialController as Social;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Admin\AdminMessageController;
@@ -18,6 +19,9 @@ use App\Http\Middleware\EnsureAdmin;
 use App\Http\Controllers\Admin\UserCrudController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\Admin\EventController as AdminEventController;
+use App\Http\Controllers\ProductListingController;
+
+
 require __DIR__ . '/auth.php';
 
 Route::get('/', function () {
@@ -26,9 +30,10 @@ Route::get('/', function () {
 Route::get('/my_account', function () {
     return view('user.myaccount');
 });
-Route::get('/trading', function () {
-    return view('trading');
-})->name('trading');
+
+Route::get('/trading', [TradingController::class, 'index'])->name('trading');
+
+
 Route::get('/admin', function () {
     return view('admin.dashboard');
 })->name('admin.dashboard');
@@ -70,16 +75,13 @@ Route::get('/events/{event:slug}', [EventController::class, 'show'])->name('even
 
 
 
-// });
 Route::prefix('admin')->name('admin.')->group(function () {
 
-    // login pages: only for people NOT logged in as admin
     Route::middleware('guest:admin')->group(function () {
         Route::get('/login', [AdminLoginController::class, 'showLogin'])->name('login');
         Route::post('/login', [AdminLoginController::class, 'login'])->name('login.submit');
     });
 
-    // everything else: must be logged in on the admin guard
     Route::middleware(['auth:admin', 'role:admin'])->group(function () {
         Route::get('/', fn() => view('admin.dashboard'))->name('dashboard');
         Route::post('/logout', [AdminLoginController::class, 'logout'])->name('logout');
@@ -171,13 +173,20 @@ Route::middleware('auth')->prefix('profile')->group(function () {
 
 
 
+Route::get('/products', [ProductListingController::class, 'retail'])
+    ->name('products.index');
 
+Route::get('/trading/products', [ProductListingController::class, 'trading'])
+    ->name('trading.products.index');
 
+    Route::get('/products', [ProductListingController::class, 'retail'])
+    ->name('products.index');
 
+Route::get('/products/{slug}', [ProductListingController::class, 'showRetail'])
+    ->name('products.show');
 
+Route::get('/trading/products', [ProductListingController::class, 'trading'])
+    ->name('trading.products.index');
 
-
-
-
-
-
+Route::get('/trading/products/{slug}', [ProductListingController::class, 'showTrading'])
+    ->name('trading.products.show');
