@@ -1,6 +1,7 @@
 @extends('layouts.trading', ['navCategories' => $categories])
 @section('body')
-   
+   @include('trading.navbar')
+
 
   
 

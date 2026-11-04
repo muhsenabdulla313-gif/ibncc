@@ -1,0 +1,60 @@
+/* Seller Hub — additions for the dynamic version (load AFTER seller_page.css). All classes are seller-* prefixed. */
+.seller-nav-item.is-locked{opacity:.45}
+.seller-select,.seller-prop-row select,.seller-prop-row textarea,.seller-variant-row select,.seller-form select{width:100%;padding:11px 12px;border:1px solid #d9d4cc;border-radius:10px;background:#fff;font:inherit;color:inherit}
+.seller-prop-row input[readonly]{background:#f6f3ee}
+.seller-check{display:inline-flex;align-items:center;gap:8px;font-size:.95rem;cursor:pointer}
+.seller-subhead{margin:28px 0 10px;font-size:1.05rem}
+.seller-empty{text-align:center;color:#8a8379;padding:28px 12px!important}
+.hint{color:#8a8379;font-size:.85rem;font-weight:400}
+
+/* current product bar */
+.seller-current{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between;padding:12px 18px;margin-bottom:14px;border:1px solid #e6e0d6;border-radius:14px;background:#fffdf9}
+.seller-current-info{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seller-current-label{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#8a8379}
+.seller-current-missing{flex-basis:100%;font-size:.88rem;color:#9a5a00}
+
+/* status pills */
+.seller-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.75rem;font-weight:600;background:#eee;color:#555;white-space:nowrap}
+.seller-pill.is-active,.seller-pill.is-delivered,.seller-pill.is-confirmed{background:#e3f5e8;color:#1d7a3a}
+.seller-pill.is-pending,.seller-pill.is-placed,.seller-pill.is-contacted{background:#fff3d6;color:#9a6a00}
+.seller-pill.is-rejected,.seller-pill.is-cancelled{background:#fde4e4;color:#b32525}
+.seller-pill.is-inactive,.seller-pill.is-draft{background:#ececec;color:#666}
+.seller-pill.is-shipped{background:#e0ecff;color:#1d4fa8}
+
+/* my products table */
+.seller-prod-thumb{width:48px;height:48px;border-radius:10px;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;background:#f1ede6;color:#b3aca0}
+.seller-actions-cell{white-space:nowrap}
+.seller-link-btn{background:none;border:0;padding:4px 8px;cursor:pointer;color:#1d4fa8;font:inherit;font-size:.88rem}
+.seller-link-btn:hover{text-decoration:underline}
+.seller-link-btn.is-danger{color:#b32525}
+
+/* variant / pricing / stock rows */
+.seller-variant-list{display:flex;flex-direction:column;gap:10px;margin:12px 0}
+.seller-variant-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:12px;border:1px solid #e6e0d6;border-radius:12px;background:#fff}
+.seller-variant-row .seller-field{flex:1 1 150px;min-width:130px}
+.seller-variant-name{flex:1 1 170px;display:flex;flex-direction:column}
+.seller-variant-name small{color:#8a8379}
+
+/* combo list extras */
+.seller-combo{position:relative}
+.seller-combo-list li.is-empty{color:#8a8379;cursor:default}
+.seller-combo input[disabled]{background:#f6f3ee;cursor:not-allowed}
+
+/* stock meter state */
+.seller-stock-meter.is-low .bar span{background:#d64545}
+
+/* toasts */
+.seller-toasts{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(380px,92vw)}
+.seller-toast{padding:12px 16px;border-radius:12px;color:#fff;background:#1f7a3d;box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:.92rem;transition:opacity .4s}
+.seller-toast.is-error{background:#b32525}
+.seller-toast.is-out{opacity:0}
+
+/* order modal */
+.seller-modal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px}
+.seller-modal[hidden]{display:none}
+.seller-modal-backdrop{position:absolute;inset:0;background:rgba(20,16,10,.55)}
+.seller-modal-card{position:relative;width:min(720px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:26px}
+.seller-modal-close{position:absolute;top:12px;right:14px;border:0;background:none;font-size:1.2rem;cursor:pointer}
+.seller-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.seller-modal-card h4{margin:16px 0 6px;font-size:.8rem;text-transform:uppercase;letter-spacing:.07em;color:#8a8379}
+@media(max-width:640px){.seller-modal-grid{grid-template-columns:1fr}}

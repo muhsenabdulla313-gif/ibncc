@@ -15,7 +15,16 @@ class ProductListingController extends Controller
         
         return $this->listing($request, 'retail');
     }
-
+private function getCategories()
+{
+    return Category::whereNull('parent_id')
+        ->where('is_active', true)
+        ->with(['children' => function ($query) {
+            $query->where('is_active', true);
+        }])
+        ->orderBy('name')
+        ->get();
+}
     public function trading(Request $request)
     {
   
@@ -304,8 +313,9 @@ $filters = $filtersQuery->get();
 
         return $ids;
     }
-    public function showRetail(string $slug)
+public function showRetail(string $slug)
 {
+    $categories = $this->getCategories();
 
     $product = Product::published()
         ->retail()
@@ -314,21 +324,33 @@ $filters = $filtersQuery->get();
             'brand',
             'unit',
             'images',
-            'variants',
+            'variants' => function ($query) {
+                $query->where('is_active', true);
+            },
+           'variants.attributeValues.attribute',
+'variants.attributeValues.option',
+'variants.images',
             'priceTiers',
-            'attributes.group',
-'attributes.options',
+            'attributes.attribute',
+            'attributes.option',
             'videos',
             'documents',
         ])
         ->where('slug', $slug)
         ->firstOrFail();
 
-    return view('catalog.details', compact('product'));
+    return view('catalog.details', compact(
+        'categories',
+        'product'
+    ));
 }
 
 public function showTrading(string $slug)
 {
+
+
+    $categories = $this->getCategories();
+
     $product = Product::published()
         ->trading()
         ->with([
@@ -346,6 +368,6 @@ public function showTrading(string $slug)
         ->where('slug', $slug)
         ->firstOrFail();
 
-    return view('catalog.details', compact('product'));
+    return view('catalog.details', compact('categories','product'));
 }
 }

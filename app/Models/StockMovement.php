@@ -6,35 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 
 class StockMovement extends Model
 {
-   protected $fillable = [
-        'product_id',
-        'product_variant_id',
-        'type',
-        'quantity',
-        'reference',
-        'notes',
-        'created_by',
+    protected $fillable = [
+        'variant_id', 'user_id', 'type', 'qty_change', 'qty_after', 'note',
+        'reference_type', 'reference_id',
     ];
 
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:3',
+            'qty_change' => 'decimal:3',
+            'qty_after'  => 'decimal:3',
         ];
     }
 
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
-
-    public function variant()
-    {
-        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
-    }
-
-    public function creator()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
+    public function variant()   { return $this->belongsTo(ProductVariant::class, 'variant_id'); }
+    public function user()      { return $this->belongsTo(User::class); }
+    public function reference() { return $this->morphTo(); }
 }

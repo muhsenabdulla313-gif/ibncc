@@ -3,91 +3,73 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
-   protected $fillable = [
-    'uuid',
-    'user_id',
-    'category_id',
-    'brand_id',
-    'unit_id',
-    'title',
-    'slug',
-    'model_no',
-    'specs_line',
-    'short_description',
-    'description',
-    'sale_type',
-    'pack_qty',
-    'min_order_qty',
-    'max_order_qty',
-    'qty_step',
-    'track_stock',
-    'min_price',
-    'max_price',
-    'in_stock',
-    'hsn_code',
-    'tax_rate',
-    'price_includes_tax',
-    'offer_text',
-    'discount_label',
-    'badge',
-    'is_featured',
-    'is_assured',
-    'rating_avg',
-    'rating_count',
-    'status',
-    'rejection_reason',
-    'published_at',
-    'meta_title',
-    'meta_description',
-];
+    use SoftDeletes;
 
-   protected function casts(): array
-{
-    return [
-        'pack_qty' => 'decimal:3',
-        'min_order_qty' => 'decimal:3',
-        'max_order_qty' => 'decimal:3',
-        'qty_step' => 'decimal:3',
-        'min_price' => 'decimal:2',
-        'max_price' => 'decimal:2',
-        'track_stock' => 'boolean',
-        'in_stock' => 'boolean',
-        'tax_rate' => 'decimal:2',
-        'price_includes_tax' => 'boolean',
-        'is_featured' => 'boolean',
-        'is_assured' => 'boolean',
-        'rating_avg' => 'decimal:2',
-        'rating_count' => 'integer',
-        'published_at' => 'datetime',
+    protected $fillable = [
+        'uuid', 'user_id', 'category_id', 'brand_id', 'unit_id', 'stock_unit_id',
+        'title', 'slug', 'model_no', 'short_description', 'description',
+        'sale_type', 'pack_qty', 'min_order_qty', 'max_order_qty', 'track_stock',
+        'hsn_code', 'tax_rate', 'price_includes_tax', 'offer_text',
+        'is_featured', 'is_assured', 'rating_avg', 'rating_count',
+        'status', 'rejection_reason', 'published_at', 'meta_title', 'meta_description',
+        // listing columns (added by 2026_11_03_000012 migration)
+        'qty_step', 'min_price', 'max_price', 'in_stock', 'specs_line', 'badge', 'discount_label',
     ];
-}
 
-    public function seller()
+    protected function casts(): array
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return [
+            'pack_qty'           => 'decimal:3',
+            'min_order_qty'      => 'decimal:3',
+            'max_order_qty'      => 'decimal:3',
+            'qty_step'           => 'decimal:3',
+            'min_price'          => 'decimal:2',
+            'max_price'          => 'decimal:2',
+            'tax_rate'           => 'decimal:2',
+            'rating_avg'         => 'decimal:2',
+            'rating_count'       => 'integer',
+            'track_stock'        => 'boolean',
+            'in_stock'           => 'boolean',
+            'price_includes_tax' => 'boolean',
+            'is_featured'        => 'boolean',
+            'is_assured'         => 'boolean',
+            'published_at'       => 'datetime',
+        ];
     }
 
-    public function category()
+    protected static function booted(): void
     {
-        return $this->belongsTo(Category::class);
+        static::creating(function (Product $p) {
+            $p->uuid ??= (string) Str::uuid();
+        });
     }
 
-    public function brand()
+    public function getRouteKeyName(): string
     {
-        return $this->belongsTo(Brand::class);
+        return 'slug';
     }
 
-    public function unit()
-    {
-        return $this->belongsTo(Unit::class);
-    }
+    /* ---------- relations ---------- */
+
+    public function seller()       { return $this->belongsTo(User::class, 'user_id'); }
+    public function category()     { return $this->belongsTo(Category::class); }
+    public function brand()        { return $this->belongsTo(Brand::class); }
+    public function unit()         { return $this->belongsTo(Unit::class); }
+    public function stockUnit()    { return $this->belongsTo(Unit::class, 'stock_unit_id'); }
 
     public function variants()
     {
         return $this->hasMany(ProductVariant::class);
+    }
+
+    public function defaultVariant()
+    {
+        return $this->hasOne(ProductVariant::class)->where('is_default', true);
     }
 
     public function attributeValues()
@@ -95,9 +77,16 @@ class Product extends Model
         return $this->hasMany(ProductAttributeValue::class);
     }
 
+    public function attributes()
+    {
+        return $this->belongsToMany(Attribute::class, 'product_attribute_values')
+            ->withPivot(['attribute_option_id', 'value_text', 'value_number', 'value_bool', 'value_date'])
+            ->withTimestamps();
+    }
+
     public function priceTiers()
     {
-        return $this->hasMany(ProductPriceTier::class);
+        return $this->hasMany(ProductPriceTier::class)->orderBy('min_qty');
     }
 
     public function images()
@@ -105,58 +94,31 @@ class Product extends Model
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
 
-    public function videos()
-    {
-        return $this->hasMany(ProductVideo::class);
-    }
+    public function videos()    { return $this->hasMany(ProductVideo::class)->orderBy('sort_order'); }
+    public function documents() { return $this->hasMany(ProductDocument::class)->orderBy('sort_order'); }
+    public function tags()      { return $this->belongsToMany(Tag::class, 'product_tag'); }
+    public function reviews()   { return $this->hasMany(ProductReview::class); }
 
-    public function documents()
-    {
-        return $this->hasMany(ProductDocument::class);
-    }
-
-    public function tags()
-    {
-        return $this->belongsToMany(Tag::class, 'product_tag');
-    }
-
+    // stock_movements has variant_id (not product_id) -> go through variants
     public function stockMovements()
     {
-        return $this->hasMany(StockMovement::class);
+        return $this->hasManyThrough(StockMovement::class, ProductVariant::class, 'product_id', 'variant_id');
     }
 
-    public function reviews()
+    /* ---------- scopes ---------- */
+
+    public function scopePublished($q)
     {
-        return $this->hasMany(ProductReview::class);
+        return $q->where('status', 'active')->whereNotNull('published_at');
     }
-  public function scopePublished($query)
-{
-    return $query->where('status', 'active')
-        ->whereNotNull('published_at');
-}
 
-public function scopeRetail($query)
-{
-    return $query->whereIn('sale_type', ['retail', 'both']);
-}
+    public function scopeRetail($q)
+    {
+        return $q->whereIn('sale_type', ['retail', 'both']);
+    }
 
-public function scopeTrading($query)
-{
-    return $query->whereIn('sale_type', ['wholesale', 'both']);
-}
-public function attributes()
-{
-    return $this->belongsToMany(
-        Attribute::class,
-        'product_attribute_values',
-        'product_id',
-        'attribute_id'
-    )->withPivot([
-        'attribute_option_id',
-        'value_text',
-        'value_number',
-        'value_bool',
-        'value_date',
-    ])->withTimestamps();
-}
+    public function scopeTrading($q)
+    {
+        return $q->whereIn('sale_type', ['wholesale', 'both']);
+    }
 }

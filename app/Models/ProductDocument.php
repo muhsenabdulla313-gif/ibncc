@@ -6,15 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductDocument extends Model
 {
-     protected $fillable = [
-        'product_id',
-        'document_path',
-        'title',
-        'document_type',
-    ];
+    protected $fillable = ['product_id', 'title', 'path', 'sort_order'];
 
-    public function product()
+    protected function casts(): array
     {
-        return $this->belongsTo(Product::class);
+        return ['sort_order' => 'integer'];
     }
+
+    public function product() { return $this->belongsTo(Product::class); }
 }

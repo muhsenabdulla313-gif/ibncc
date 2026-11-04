@@ -6,19 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Brand extends Model
 {
-    protected $fillable = [
-        'name',
-        'slug',
-        'description',
-        'logo',
-        'is_active',
-    ];
+    protected $fillable = ['name', 'slug', 'logo', 'is_active'];
 
     protected function casts(): array
     {
-        return [
-            'is_active' => 'boolean',
-        ];
+        return ['is_active' => 'boolean'];
     }
 
     public function products()

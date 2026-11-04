@@ -6,13 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductImage extends Model
 {
-     protected $fillable = [
-        'product_id',
-        'variant_id',
-        'image_path',
-        'alt_text',
-        'sort_order',
-        'is_primary',
+    protected $fillable = [
+        'product_id', 'variant_id',
+        'attribute_option_id',   // added by 2026_11_03_000012 migration (gallery per colour)
+        'path', 'alt', 'sort_order', 'is_primary',
     ];
 
     protected function casts(): array
@@ -23,13 +20,12 @@ class ProductImage extends Model
         ];
     }
 
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
+    public function product() { return $this->belongsTo(Product::class); }
+    public function variant() { return $this->belongsTo(ProductVariant::class, 'variant_id'); }
+    public function option()  { return $this->belongsTo(AttributeOption::class, 'attribute_option_id'); }
 
-    public function variant()
+    public function getUrlAttribute(): string
     {
-        return $this->belongsTo(ProductVariant::class, 'variant_id');
+        return str_starts_with($this->path, 'http') ? $this->path : asset($this->path);
     }
 }

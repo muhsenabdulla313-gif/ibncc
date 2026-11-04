@@ -7,18 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class Category extends Model
 {
     protected $fillable = [
-        'name',
-        'slug',
-        'parent_id',
-        'description',
-        'image',
-        'is_active',
+        'parent_id', 'name', 'slug', 'path', 'depth', 'description', 'image',
+        'meta_title', 'meta_description', 'sort_order', 'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'is_active' => 'boolean',
+            'depth'      => 'integer',
+            'sort_order' => 'integer',
+            'is_active'  => 'boolean',
         ];
     }
 
@@ -29,7 +27,9 @@ class Category extends Model
 
     public function children()
     {
-        return $this->hasMany(Category::class, 'parent_id');
+        return $this->hasMany(Category::class, 'parent_id')
+            ->where('is_active', true)
+            ->orderBy('sort_order');
     }
 
     public function products()
@@ -39,6 +39,19 @@ class Category extends Model
 
     public function attributes()
     {
-        return $this->belongsToMany(Attribute::class, 'category_attributes');
+        return $this->belongsToMany(Attribute::class, 'category_attributes')
+            ->withPivot(['is_required', 'is_filterable', 'is_variant_axis', 'applies_to', 'sort_order'])
+            ->withTimestamps()
+            ->orderBy('category_attributes.sort_order');
+    }
+
+    public function scopeActive($q)
+    {
+        return $q->where('is_active', true);
+    }
+
+    public function scopeRoots($q)
+    {
+        return $q->whereNull('parent_id');
     }
 }

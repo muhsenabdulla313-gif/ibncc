@@ -94,6 +94,24 @@
                                 <p>Admin Messages</p>
                             </a>
                         </li>
+                        <li class="nav-item {{ request()->routeIs('admin.catalog.*') ? 'active' : '' }}">
+    <a href="{{ route('admin.catalog.index') }}">
+        <i class="fas fa-sitemap"></i>
+        <p>Product Catalog</p>
+    </a>
+</li>
+<li class="nav-item {{ request()->routeIs('admin.catalog.*') ? 'active submenu' : '' }}">
+    <a data-bs-toggle="collapse" href="#catalogMenu" aria-expanded="{{ request()->routeIs('admin.catalog.*') ? 'true' : 'false' }}">
+        <i class="fas fa-boxes-stacked"></i>
+        <p>Catalog</p>
+        <span class="caret"></span>
+    </a>
+    <div class="collapse {{ request()->routeIs('admin.catalog.*') ? 'show' : '' }}" id="catalogMenu">
+        <ul class="nav nav-collapse">
+            <li><a href="{{ route('admin.catalog.index') }}"><span class="sub-item">Categories &amp; Attributes</span></a></li>
+        </ul>
+    </div>
+</li>
                         
 
                         <li class="nav-item {{ request()->routeIs('admin.users.index') ? 'active' : '' }}">

@@ -1,15 +1,5 @@
-{{--
-    Unified listing for RETAIL (ch-product-list.html) and TRADING (trading-product-list.html).
-    Same markup / ids / data-* hooks as the HTML, so ch-product-list.js works unchanged.
 
-    Needs: $mode ('retail' | 'wholesale'), $products, $categories (root, with ->children),
-           $selectedCategory (nullable), $brands, $filters (filterable attributes with ->options)
-    Eager load on products: brand, unit, images, variants, priceTiers, category.parent.parent
-    (optional) attributeValues.option  → fills data-{attribute} on each card for the attribute filters
-    (optional) $child->preview_images  → array of up to 4 image URLs for the sub-category cards
---}}
 @extends('layouts.trading')
-
 @php
     use Illuminate\Support\Str;
 
@@ -109,6 +99,8 @@
 @section('page-class', 'product-list-page' . ($isRetail ? '' : ' trading-product-list-page'))
 
 @section('body')
+@include('trading.navbar')
+
 <main class="pl-main">
     <div class="pl-layout">
 

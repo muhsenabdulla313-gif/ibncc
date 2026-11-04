@@ -20,6 +20,14 @@ use App\Http\Controllers\Admin\UserCrudController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\Admin\EventController as AdminEventController;
 use App\Http\Controllers\ProductListingController;
+use App\Http\Controllers\Seller\SellerHubController;
+use App\Http\Controllers\Admin\CatalogController;
+
+use App\Http\Controllers\Seller\SellerCatalogController;
+use App\Http\Controllers\Seller\SellerController;
+use App\Http\Controllers\Seller\SellerOrderController;
+use App\Http\Controllers\Seller\SellerProductController;
+use App\Http\Middleware\EnsureSeller;
 
 
 require __DIR__ . '/auth.php';
@@ -111,6 +119,24 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('admin-messages', AdminMessageController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->parameters(['admin-messages' => 'adminMessage']);
+
+
+
+Route::prefix('catalog')->name('catalog.')->group(function () {
+    Route::get('/', [CatalogController::class, 'index'])->name('index');
+    Route::get('lookups', [CatalogController::class, 'lookups'])->name('lookups');
+
+    $e = 'categories|attribute-groups|attributes|units|brands';
+    Route::get('{entity}', [CatalogController::class, 'list'])->where('entity', $e)->name('list');
+    Route::post('{entity}', [CatalogController::class, 'store'])->where('entity', $e)->name('store');
+    Route::get('{entity}/{id}', [CatalogController::class, 'show'])->where('entity', $e)->whereNumber('id')->name('show');
+    Route::put('{entity}/{id}', [CatalogController::class, 'update'])->where('entity', $e)->whereNumber('id')->name('update');   // POST + _method=PUT (multipart)
+    Route::delete('{entity}/{id}', [CatalogController::class, 'destroy'])->where('entity', $e)->whereNumber('id')->name('destroy');
+});
+
+
+
+
     });
 });
 Route::middleware('role:member')->group(function () {
@@ -179,7 +205,7 @@ Route::get('/products', [ProductListingController::class, 'retail'])
 Route::get('/trading/products', [ProductListingController::class, 'trading'])
     ->name('trading.products.index');
 
-    Route::get('/products', [ProductListingController::class, 'retail'])
+Route::get('/products', [ProductListingController::class, 'retail'])
     ->name('products.index');
 
 Route::get('/products/{slug}', [ProductListingController::class, 'showRetail'])
@@ -190,3 +216,56 @@ Route::get('/trading/products', [ProductListingController::class, 'trading'])
 
 Route::get('/trading/products/{slug}', [ProductListingController::class, 'showTrading'])
     ->name('trading.products.show');
+
+
+
+
+
+
+
+
+
+
+
+
+
+// admin guard (separate from the member "web" guard). Change `auth:admin` if your guard/middleware is named differently.
+
+
+
+
+Route::prefix('seller')->name('seller.')->group(function () {
+    Route::get('/', [SellerController::class, 'index'])->name('index');
+    // Route::post('/products', [SellerHubController::class, 'store'])->name('products.store');
+    // Route::put('/products/{product}', [SellerHubController::class, 'update'])->name('products.update');
+    // Route::delete('/products/{product}', [SellerHubController::class, 'destroy'])->name('products.destroy');
+});
+
+
+
+Route::prefix('seller')->name('seller.')->group(function () {
+
+   
+
+    // catalog helpers (category tree, attributes of a category)
+    Route::get('categories/children', [SellerCatalogController::class, 'children'])->name('categories.children');
+    Route::get('categories/{category}/attributes', [SellerCatalogController::class, 'attributes'])->name('categories.attributes');
+
+    // products
+    Route::get('products', [SellerProductController::class, 'index'])->name('products.index');
+    Route::post('products', [SellerProductController::class, 'store'])->name('products.store');
+    Route::get('products/{uuid}', [SellerProductController::class, 'show'])->name('products.show');
+    Route::put('products/{uuid}', [SellerProductController::class, 'update'])->name('products.update');   // sent as POST + _method=PUT (multipart)
+    Route::delete('products/{uuid}', [SellerProductController::class, 'destroy'])->name('products.destroy');
+    Route::post('products/{uuid}/status', [SellerProductController::class, 'status'])->name('products.status');
+    Route::put('products/{uuid}/details', [SellerProductController::class, 'details'])->name('products.details');
+    Route::put('products/{uuid}/variants', [SellerProductController::class, 'variants'])->name('products.variants');
+    Route::put('products/{uuid}/pricing', [SellerProductController::class, 'pricing'])->name('products.pricing');
+    Route::put('products/{uuid}/bulk-rule', [SellerProductController::class, 'bulkRule'])->name('products.bulk');
+    Route::delete('products/{uuid}/bulk-rule', [SellerProductController::class, 'disableBulk'])->name('products.bulk.disable');
+    Route::put('products/{uuid}/tiers', [SellerProductController::class, 'tiers'])->name('products.tiers');
+    Route::put('products/{uuid}/stock', [SellerProductController::class, 'stock'])->name('products.stock');
+
+    Route::get('orders/{item}', [SellerOrderController::class, 'show'])->name('orders.show');
+    Route::put('orders/{item}', [SellerOrderController::class, 'update'])->name('orders.update');
+});
