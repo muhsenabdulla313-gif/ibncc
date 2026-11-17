@@ -205,7 +205,7 @@
                 </div>
 
                 <div class="seller-field full">
-                  <label>Images <span class="hint">up to 8 · JPG/PNG · 4 MB each · first image is the cover</span></label>
+                  <label>Images <span class="hint">up to 20 · JPG/PNG · 4 MB each · first image is the cover</span></label>
                   <input type="file" id="productImageInput" accept="image/*" multiple hidden />
                   <div class="seller-image-uploader" id="productImages"></div>
                 </div>
@@ -268,6 +268,7 @@
             <div class="seller-variant-list" id="variantRows"></div>
             <button type="button" class="seller-btn seller-btn-secondary seller-add-row" id="addVariantRow"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add variant</button>
             <div class="seller-actions"><button type="button" class="seller-btn seller-btn-primary" id="saveVariants">Save variants</button></div>
+            <div id="variantImages" class="seller-imgmap-box" hidden></div>
           </article>
 
           <!-- ===== Pricing ===== -->
@@ -522,6 +523,7 @@
     <script>
       window.SELLER = {
         mode: @json($mode),
+        autoPublish: @json((bool) config('app.seller_auto_approve', true)),
         roots: @json($rootCats->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'has_children' => $c->children_count > 0])->values()),
         units: @json($units),
         routes: {

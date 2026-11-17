@@ -20,8 +20,11 @@ private function getCategories()
     return Category::whereNull('parent_id')
         ->where('is_active', true)
         ->with(['children' => function ($query) {
-            $query->where('is_active', true);
+            $query->where('is_active', true)->with(['children' => function ($q) {
+                $q->where('is_active', true);
+            }]);
         }])
+        ->orderBy('sort_order')
         ->orderBy('name')
         ->get();
 }
@@ -313,61 +316,59 @@ $filters = $filtersQuery->get();
 
         return $ids;
     }
-public function showRetail(string $slug)
-{
-    $categories = $this->getCategories();
 
+
+private function loadProduct(string $slug, string $mode): Product
+{
     $product = Product::published()
-        ->retail()
+        ->{$mode}()
         ->with([
-            'category',
+            'category.parent.parent',
             'brand',
             'unit',
             'images',
+
             'variants' => function ($query) {
                 $query->where('is_active', true);
             },
-           'variants.attributeValues.attribute',
-'variants.attributeValues.option',
-'variants.images',
+
+            'variants.attributeValues.attribute',
+            'variants.attributeValues.option',
+            'variants.images',
+
             'priceTiers',
-            'attributes.attribute',
-            'attributes.option',
+
+            'attributes.group',
+            'attributes.options',
+            'attributeValues.attribute',
+            'attributeValues.option',
+
             'videos',
             'documents',
         ])
         ->where('slug', $slug)
         ->firstOrFail();
 
-    return view('catalog.details', compact(
-        'categories',
-        'product'
-    ));
+    return $product;
+}
+
+
+
+public function showRetail(string $slug)
+{
+    return view('catalog.details', [
+        'categories' => $this->getCategories(),
+        'product' => $this->loadProduct($slug, 'retail'),
+        'mode' => 'retail',
+    ]);
 }
 
 public function showTrading(string $slug)
 {
-
-
-    $categories = $this->getCategories();
-
-    $product = Product::published()
-        ->trading()
-        ->with([
-            'category',
-            'brand',
-            'unit',
-            'images',
-            'variants',
-            'priceTiers',
-'attributes.group',
-            'attributes.option',
-            'videos',
-            'documents',
-        ])
-        ->where('slug', $slug)
-        ->firstOrFail();
-
-    return view('catalog.details', compact('categories','product'));
+    return view('catalog.details', [
+        'categories' => $this->getCategories(),
+        'product' => $this->loadProduct($slug, 'trading'),
+        'mode' => 'wholesale',
+    ]);
 }
 }

@@ -14,6 +14,7 @@ use App\Services\ProductImageService;
 use App\Services\SellerProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -29,6 +30,14 @@ class SellerProductController extends Controller
     private function fail(string $field, string $msg): never
     {
         throw ValidationException::withMessages([$field => [$msg]]);
+    }
+
+    /** config('app.seller_auto_approve', true) = true  -> submitting publishes straight away (handy for testing); false -> admin must approve */
+    private function submitFields(): array
+    {
+        return config('app.seller_auto_approve', true)
+            ? ['status' => 'active', 'published_at' => now(), 'rejection_reason' => null]
+            : ['status' => 'pending', 'rejection_reason' => null];
     }
 
     private function ok(Product $p, string $message)
@@ -94,7 +103,7 @@ class SellerProductController extends Controller
             'short_description' => 'nullable|string|max:500',
             'description'       => 'nullable|string|max:20000',
             'action'            => 'nullable|in:draft,submit',
-            'images'            => 'nullable|array|max:8',
+            'images'            => 'nullable|array|max:20',
             'images.*'          => 'image|max:4096',
             'remove_images'     => 'nullable|array',
             'remove_images.*'   => 'integer',
@@ -115,7 +124,7 @@ class SellerProductController extends Controller
         $removeIds = collect($data['remove_images'] ?? [])->map(fn ($i) => (int) $i);
         $existing  = $p ? $p->images()->whereNotIn('id', $removeIds)->count() : 0;
         $newFiles  = $r->file('images', []);
-        if ($existing + count($newFiles) > 8) $this->fail('images', 'You can keep a maximum of 8 images per product.');
+        if ($existing + count($newFiles) > 20) $this->fail('images', 'You can keep a maximum of 20 images per product.');
 
         $brandId = null;
         if (filled($data['brand_name'] ?? null)) {
@@ -135,9 +144,8 @@ class SellerProductController extends Controller
             if (!$p) {
                 $p = Product::create($fields + [
                     'user_id' => auth()->id(), 'unit_id' => $unitId, 'slug' => $this->uniqueSlug($data['title']),
-                    'status' => $submit ? 'pending' : 'draft',
                     'min_order_qty' => 1,
-                ]);
+                ] + (($submit && !config('app.seller_auto_approve', true)) ? $this->submitFields() : ['status' => 'draft']));
                 $p->variants()->create([
                     'sku' => $this->uniqueSku($data['sku'] ?? null), 'is_default' => true, 'is_active' => true,
                     'stock' => 0, 'options' => null,
@@ -145,8 +153,8 @@ class SellerProductController extends Controller
             } else {
                 $p->update($fields);
                 // re-submitting a draft / rejected product
-                if ($submit && in_array($p->status, ['draft', 'rejected'])) {
-                    $p->update(['status' => 'pending', 'rejection_reason' => null]);
+                if ($submit && !config('app.seller_auto_approve', true) && in_array($p->status, ['draft', 'rejected'])) {
+                    $p->update($this->submitFields());
                 } elseif (!$submit && in_array($p->status, ['pending', 'rejected'])) {
                     $p->update(['status' => 'draft']);
                 }
@@ -220,8 +228,8 @@ class SellerProductController extends Controller
                 if ($missing = $this->svc->missing($p)) {
                     throw ValidationException::withMessages(['status' => array_merge(['Complete these before submitting:'], $missing)]);
                 }
-                $p->update(['status' => 'pending', 'rejection_reason' => null]);
-                $msg = 'Submitted for review.';
+                $p->update($this->submitFields());
+                $msg = config('app.seller_auto_approve', true) ? 'Published to the store.' : 'Submitted for review.';
                 break;
             case 'draft':
                 if ($p->status !== 'pending') $this->fail('status', 'Only pending products can go back to draft.');
@@ -335,6 +343,75 @@ class SellerProductController extends Controller
         });
 
         return $this->ok($p, 'Variants saved.');
+    }
+
+    /* ================= photos uploaded straight from a variant row ================= */
+
+    public function variantPhotos(Request $request, string $uuid, int $variant)
+    {
+        $p = $this->mine($uuid);
+        if (!Schema::hasColumn('product_images', 'attribute_option_id')) {
+            $this->fail('images', 'Run the add_option_to_product_images migration first (php artisan migrate).');
+        }
+        $v = $p->variants()->with('attributeValues')->findOrFail($variant);
+        $request->validate(['option_id' => 'required|integer', 'images' => 'required|array|min:1|max:4', 'images.*' => 'image|max:4096']);
+
+        // the photos follow one option of this variant (colour today, any option later)
+        $opt = (int) $request->input('option_id');
+        if (!$v->attributeValues->contains('attribute_option_id', $opt)) {
+            $this->fail('images', 'Choose this variant\'s option and click "Save variants" first.');
+        }
+
+        $files = $request->file('images');
+        $have  = $p->images()->where('attribute_option_id', $opt)->count();
+        if ($have + count($files) > 4) $this->fail('images', "Maximum 4 photos for each option (this one already has $have).");
+        if ($p->images()->count() + count($files) > 20) $this->fail('images', 'A product can have at most 20 photos.');
+
+        $sort = (int) $p->images()->max('sort_order');
+        foreach ($files as $f) {
+            $this->images->store($p, $f, ++$sort)->update(['attribute_option_id' => $opt]);
+        }
+        if (!$p->images()->where('is_primary', true)->exists()) {
+            $p->images()->orderBy('sort_order')->first()?->update(['is_primary' => true]);
+        }
+        return $this->ok($p, 'Photos added.');
+    }
+
+    public function deletePhoto(string $uuid, int $image)
+    {
+        $p = $this->mine($uuid);
+        $img = $p->images()->findOrFail($image);
+        $wasPrimary = $img->is_primary;
+        $this->images->delete($img);
+        if ($wasPrimary) $p->images()->orderBy('sort_order')->first()?->update(['is_primary' => true]);
+        return $this->ok($p, 'Photo removed.');
+    }
+
+    /* ================= images per variant option (e.g. per colour) ================= */
+
+    public function variantImages(Request $request, string $uuid)
+    {
+        $p = $this->mine($uuid);
+        if (!Schema::hasColumn('product_images', 'attribute_option_id')) {
+            $this->fail('images', 'Run the add_option_to_product_images migration first (php artisan migrate).');
+        }
+        $map = $request->validate(['map' => 'present|array', 'map.*' => 'nullable|integer'])['map'];
+
+        $allowed = collect($this->svc->imageAxes($p))->flatMap(fn ($a) => collect($a['options'])->pluck('id'))->all();
+
+        $counts = [];
+        foreach ($map as $optId) { if ($optId) $counts[$optId] = ($counts[$optId] ?? 0) + 1; }
+        if ($counts && max($counts) > 4) $this->fail('images', 'You can assign a maximum of 4 photos to each option.');
+
+        DB::transaction(function () use ($p, $map, $allowed) {
+            foreach ($map as $imageId => $optId) {
+                $img = $p->images()->find((int) $imageId);
+                if (!$img) continue;
+                if ($optId !== null && !in_array((int) $optId, $allowed)) $this->fail('images', 'Invalid option for an image.');
+                $img->update(['attribute_option_id' => $optId ?: null]);
+            }
+        });
+        return $this->ok($p, 'Images saved.');
     }
 
     /* ================= pricing (retail) ================= */

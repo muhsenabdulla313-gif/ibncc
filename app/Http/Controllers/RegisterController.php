@@ -128,19 +128,24 @@ public function store(Request $request)
         'email' => $this->normalize('email', (string) $request->input('email')),
     ]);
 
-    $data = $request->validate([
-        'name'      => 'required|string|max:100',
-        'parish_id' => 'required|exists:parishes,id',
-        'password'  => 'required|string|min:6|max:64',
-        'confirm'   => 'required|same:password',
-        'phone'     => 'required|digits:10',
-        'email'     => 'required|email|max:255',
-    ], [
-        'confirm.same'       => 'Passwords do not match.',
-        'phone.digits'       => 'Enter a valid 10-digit phone number.',
-        'parish_id.required' => 'Select your rite, diocese, forane and parish.',
-        'parish_id.exists'   => 'Select a valid parish.',
-    ]);
+   $isOther = $request->input('parish_id') === 'other';
+
+$data = $request->validate([
+    'name'            => 'required|string|max:100',
+    'parish_id'       => $isOther ? 'required' : 'required|exists:parishes,id',
+    'forane_id'       => $isOther ? 'required|exists:foranes,id' : 'nullable',
+    'new_parish_name' => $isOther ? 'required|string|min:3|max:150' : 'nullable',
+    'password'        => 'required|string|min:6|max:64',
+    'confirm'         => 'required|same:password',
+    'phone'           => 'required|digits:10',
+    'email'           => 'required|email|max:255',
+], [
+    'confirm.same'            => 'Passwords do not match.',
+    'phone.digits'            => 'Enter a valid 10-digit phone number.',
+    'parish_id.required'      => 'Select your rite, diocese, forane and parish.',
+    'parish_id.exists'        => 'Select a valid parish.',
+    'new_parish_name.required' => 'Enter your parish name.',
+]);
 
     $phone = $data['phone'];
     $email = $data['email'];
@@ -157,7 +162,14 @@ public function store(Request $request)
     if (! Cache::get($verifiedKey)) {
         $this->reject('email', 'Please verify your email.');
     }
+$parishId = $data['parish_id'];
 
+if ($isOther) {
+    $parishId = \App\Models\Parish::firstOrCreate([
+        'forane_id' => $data['forane_id'],
+        'name'      => preg_replace('/\s+/', ' ', trim($data['new_parish_name'])),
+    ])->id;
+}
     $attributes = [
         'role_id'           => Role::where('name', 'member')->value('id'),
         'name'              => $data['name'],

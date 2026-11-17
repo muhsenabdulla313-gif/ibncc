@@ -131,7 +131,7 @@
       if (!rows.length) { body.innerHTML = '<tr><td colspan="8" class="seller-empty">No products yet — click “New product” to add your first listing.</td></tr>'; return; }
       body.innerHTML = rows.map((r) => {
         const acts = [`<button type="button" class="seller-link-btn" data-act="edit">Edit</button>`];
-        if (['draft', 'rejected'].includes(r.status)) acts.push(`<button type="button" class="seller-link-btn" data-act="submit">Submit</button>`);
+        if (['draft', 'rejected'].includes(r.status)) acts.push(`<button type="button" class="seller-link-btn" data-act="submit">${C.autoPublish ? 'Publish' : 'Submit'}</button>`);
         if (r.status === 'pending') acts.push(`<button type="button" class="seller-link-btn" data-act="draft">Withdraw</button>`);
         if (r.status === 'active') acts.push(`<button type="button" class="seller-link-btn" data-act="deactivate">Hide</button>`);
         if (r.status === 'inactive') acts.push(`<button type="button" class="seller-link-btn" data-act="activate">Show</button>`);
@@ -190,7 +190,7 @@
     const s = $('#currentStatus'); s.textContent = STATUS[p.status]; s.className = 'seller-pill is-' + p.status;
     const m = $('#currentMissing'); const notes = [];
     if (p.status === 'rejected' && p.rejection_reason) notes.push('Rejected: ' + p.rejection_reason);
-    if (['draft', 'rejected'].includes(p.status) && p.missing.length) notes.push('Before you can submit: ' + p.missing.join(' · '));
+    if (['draft', 'rejected'].includes(p.status) && p.missing.length) notes.push('Before you can publish: ' + p.missing.join(' · '));
     m.hidden = !notes.length; m.textContent = notes.join('  —  ');
   }
 
@@ -208,7 +208,7 @@
     if (st.images.length && !st.images.some((i) => i.primary)) st.images[0].primary = true;
     $('#productImages').innerHTML = st.images.map((im, i) =>
       `<div class="seller-thumb ${im.primary ? 'is-active' : ''}" data-i="${i}" title="${im.primary ? 'Cover image' : 'Click to make cover'}"><img src="${esc(im.url)}" alt=""><button type="button" class="seller-thumb-remove" data-rm="${i}" aria-label="Remove image"><i class="fa-solid fa-xmark"></i></button></div>`
-    ).join('') + (st.images.length < 8 ? '<button type="button" class="seller-upload-slot" data-add><i class="fa-solid fa-plus"></i> Add image</button>' : '');
+    ).join('') + (st.images.length < 20 ? '<button type="button" class="seller-upload-slot" data-add><i class="fa-solid fa-plus"></i> Add image</button>' : '');
   }
   $('#productImages').addEventListener('click', (e) => {
     if (e.target.closest('[data-add]')) return $('#productImageInput').click();
@@ -219,7 +219,7 @@
   });
   $('#productImageInput').addEventListener('change', (e) => {
     for (const f of e.target.files) {
-      if (st.images.length >= 8) { toast('Maximum 8 images.', 'error'); break; }
+      if (st.images.length >= 20) { toast('Maximum 20 images.', 'error'); break; }
       if (f.size > 4 * 1024 * 1024) { toast(f.name + ' is larger than 4 MB.', 'error'); continue; }
       st.images.push({ file: f, url: URL.createObjectURL(f), primary: false });
     }
@@ -296,20 +296,133 @@
   $('#thumbNext').addEventListener('click', () => { const n = st.product ? st.product.images.length : 0; if (n) { st.gallery = (st.gallery + 1) % n; renderGallery(); } });
 
   /* ---------- Variants ---------- */
-  function variantRow(v, axes) {
+  /* which variant option the photos follow: Colour by default; any other option can be picked later */
+  function photoAxis(p) {
+    const axes = p.axes || [];
+    if (!axes.length) return null;
+    if (st.photoAxis === undefined || !axes.some((a) => a.id === st.photoAxis)) {
+      st.photoAxis = (axes.find((a) => a.input_type === 'color' || /colou?r/i.test(a.name)) || axes[0]).id;
+    }
+    return axes.find((a) => a.id === st.photoAxis);
+  }
+  function photoStrip(v, p) {
+    const hint = (t) => `<div class="seller-vphotos" style="flex-basis:100%"><small class="hint">${t}</small></div>`;
+    if (!v.id || !p) return hint('Save the variants first, then add this variant’s photos here.');
+    const ax = photoAxis(p);
+    if (!ax) return hint('This category has no variant options, so photos are managed in Add / edit product.');
+    const opt = Number(v.options[ax.id] || 0);
+    if (!opt) return hint(`Choose a ${esc(ax.name.toLowerCase())} for this variant and click “Save variants” to add photos here.`);
+    const label = (ax.options.find((o) => o.id === opt) || {}).label || '';
+    const imgs = p.images.filter((i) => Number(i.option_id) === opt);
+    return `<div class="seller-vphotos" style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <small class="hint" style="flex-basis:100%">Photos for ${esc(ax.name)} “${esc(label)}” (${imgs.length}/4) — shared by every ${esc(label)} variant</small>
+      ${imgs.map((im) => `<span style="position:relative;display:inline-block"><img src="${esc(im.url)}" alt="" style="width:60px;height:60px;object-fit:cover;border-radius:8px;display:block"><button type="button" class="vp-del" data-img="${im.id}" aria-label="Remove photo" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:0;background:#b32525;color:#fff;cursor:pointer;line-height:20px;padding:0">×</button></span>`).join('')}
+      ${imgs.length < 4 ? `<button type="button" class="seller-btn seller-btn-secondary vp-add">+ Add photos</button><input type="file" class="vp-file" data-variant="${v.id}" data-opt="${opt}" accept="image/*" multiple hidden>` : ''}</div>`;
+  }
+  function photoAxisPicker(p) {
+    let box = $('#photoAxisBox');
+    if (!box) { box = document.createElement('div'); box.id = 'photoAxisBox'; $('#variantRows').before(box); }
+    const axes = p.axes || [];
+    if (axes.length < 2) { box.innerHTML = ''; return; }
+    const cur = photoAxis(p);
+    box.innerHTML = `<div class="seller-field" style="max-width:260px;margin-bottom:12px"><label>Photos change by</label><select id="photoAxisPick" class="seller-select">${axes.map((a) => `<option value="${a.id}" ${a.id === cur.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>`;
+  }
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'photoAxisPick' && st.product) { st.photoAxis = +e.target.value; fillVariants(st.product); }
+  });
+  function variantRow(v, axes, p) {
     const sels = axes.map((ax) => `<div class="seller-field"><label>${esc(ax.name)}</label><select class="v-opt" data-attr="${ax.id}"><option value="">Select</option>${ax.options.map((o) => `<option value="${o.id}" ${String(v.options[ax.id]) === String(o.id) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>`).join('');
     return `<div class="seller-variant-row" data-id="${v.id || ''}">
       <div class="seller-field"><label>Code (SKU)</label><input class="v-sku" type="text" maxlength="100" value="${esc(v.sku)}"></div>${sels}
       <label class="seller-check"><input type="checkbox" class="v-active" ${v.is_active !== false ? 'checked' : ''}> Active</label>
       ${v.is_default ? '<span class="seller-pill is-active">Default</span>' : ''}
-      <button type="button" class="seller-row-remove" aria-label="Remove variant"><i class="fa-solid fa-xmark"></i></button></div>`;
+      <button type="button" class="seller-row-remove" aria-label="Remove variant"><i class="fa-solid fa-xmark"></i></button>
+      ${photoStrip(v, p)}</div>`;
   }
   function fillVariants(p) {
     const axes = p.axes;
     $('#variantHint').textContent = axes.length ? 'Choose every option for each variant, e.g. Colour + Size. Each combination can exist once.' : 'This category has no variant options (such as size or colour), so the product is sold as a single item.';
     $('#addVariantRow').hidden = !axes.length;
-    $('#variantRows').innerHTML = p.variants.map((v) => variantRow(v, axes)).join('');
+    $('#variantRows').innerHTML = p.variants.map((v) => variantRow(v, axes, p)).join('');
+    photoAxisPicker(p);
+    renderVariantImages(p);
   }
+
+  /* photos grouped by a variant option (colour first). max 4 photos per option */
+  const MAX_PER_OPTION = 4;
+  function renderVariantImages(p) {
+    const box = $('#variantImages'), axes = p.image_axes || [];
+    if (!axes.length || !p.images.length) { box.hidden = true; box.innerHTML = ''; return; }
+    if (st.imgAxis === undefined || !axes.some((a) => a.id === st.imgAxis)) st.imgAxis = (axes.find((a) => a.preferred) || axes[0]).id;
+    st.imgMap = {};
+    const ax = axes.find((a) => a.id === st.imgAxis), ids = ax.options.map((o) => o.id);
+    p.images.forEach((i) => { if (i.option_id && ids.includes(i.option_id)) st.imgMap[i.id] = i.option_id; });
+    const lc = ax.name.toLowerCase();
+    box.hidden = false;
+    box.innerHTML = `<h3 class="seller-subhead">Photos by ${esc(lc)}</h3>` +
+      (axes.length > 1 ? `<div class="seller-field" style="max-width:240px;margin-bottom:10px"><label>Group photos by</label><select id="imgAxisPick" class="seller-select">${axes.map((a) => `<option value="${a.id}" ${a.id === ax.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>` : '') +
+      `<p class="hint">Tap the photos that belong to each ${esc(lc)} (max ${MAX_PER_OPTION} per ${esc(lc)}). Photos you leave unassigned show for every choice.</p>` +
+      ax.options.map((o) => `<div class="seller-imgmap" data-opt="${o.id}" style="margin:14px 0;padding:12px;border:1px solid #e6e0d6;border-radius:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">${o.color_hex ? `<span style="width:18px;height:18px;border-radius:50%;border:1px solid #0003;background:${esc(o.color_hex)}"></span>` : ''}<strong>${esc(o.label)}</strong> <small class="hint" data-count></small></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${p.images.map((im) => `<button type="button" class="seller-imgmap-thumb" data-img="${im.id}" style="width:68px;height:68px;padding:0;border:3px solid transparent;border-radius:10px;overflow:hidden;background:#f1ede6;cursor:pointer"><img src="${esc(im.url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></button>`).join('')}</div></div>`).join('') +
+      `<button type="button" class="seller-btn seller-btn-secondary" id="saveVariantImages">Save photos by ${esc(lc)}</button>`;
+    paintImgMap();
+  }
+  function paintImgMap() {
+    $$('#variantImages .seller-imgmap').forEach((g) => {
+      const opt = +g.dataset.opt;
+      $('[data-count]', g).textContent = '(' + Object.values(st.imgMap).filter((v) => v === opt).length + '/' + MAX_PER_OPTION + ')';
+      $$('.seller-imgmap-thumb', g).forEach((b) => {
+        const cur = st.imgMap[b.dataset.img];
+        b.style.borderColor = cur === opt ? '#1f7a3d' : 'transparent';
+        b.style.opacity = cur && cur !== opt ? '.3' : '1';
+      });
+    });
+  }
+  $('#variantImages').addEventListener('click', (e) => {
+    const pick = e.target.closest('#imgAxisPick');
+    const t = e.target.closest('.seller-imgmap-thumb');
+    if (t) {
+      const opt = +t.closest('.seller-imgmap').dataset.opt;
+      if (st.imgMap[t.dataset.img] === opt) delete st.imgMap[t.dataset.img];
+      else {
+        if (Object.values(st.imgMap).filter((v) => v === opt).length >= MAX_PER_OPTION && st.imgMap[t.dataset.img] !== opt) return toast('Maximum ' + MAX_PER_OPTION + ' photos for each option.', 'error');
+        st.imgMap[t.dataset.img] = opt;
+      }
+      return paintImgMap();
+    }
+    const b = e.target.closest('#saveVariantImages'); if (!b) return;
+    run(b, async () => {
+      const ax = st.product.image_axes.find((a) => a.id === st.imgAxis), ids = ax.options.map((o) => o.id), map = {};
+      st.product.images.forEach((i) => {
+        if (st.imgMap[i.id]) map[i.id] = st.imgMap[i.id];
+        else if (!(i.option_id && !ids.includes(i.option_id))) map[i.id] = null;   // keep photos tied to a different option untouched
+      });
+      const res = await api('PUT', pUrl('/variant-images'), { map });
+      setProduct(res.product); toast(res.message);
+    });
+  });
+  $('#variantImages').addEventListener('change', (e) => {
+    if (e.target.id === 'imgAxisPick') { st.imgAxis = +e.target.value; renderVariantImages(st.product); }
+  });
+
+  $('#variantRows').addEventListener('click', (e) => {
+    const add = e.target.closest('.vp-add');
+    if (add) return add.parentElement.querySelector('.vp-file').click();
+    const del = e.target.closest('.vp-del');
+    if (del) run(del, async () => {
+      if (!confirm('Remove this photo?')) return;
+      const res = await api('DELETE', pUrl('/photos/' + del.dataset.img)); setProduct(res.product); toast(res.message);
+    });
+  });
+  $('#variantRows').addEventListener('change', (e) => {
+    const f = e.target.closest('.vp-file'); if (!f || !f.files.length) return;
+    run(null, async () => {
+      const fd = new FormData(); fd.append('option_id', f.dataset.opt); [...f.files].forEach((x) => fd.append('images[]', x));
+      const res = await api('POST', pUrl('/variants/' + f.dataset.variant + '/photos'), fd);
+      setProduct(res.product); toast(res.message);
+    });
+  });
   $('#addVariantRow').addEventListener('click', () => {
     const p = st.product, n = $$('#variantRows .seller-variant-row').length + 1;
     $('#variantRows').insertAdjacentHTML('beforeend', variantRow({ id: null, sku: (p.sku || 'SKU') + '-' + n, options: {}, is_active: true }, p.axes));

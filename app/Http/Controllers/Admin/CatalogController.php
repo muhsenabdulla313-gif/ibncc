@@ -10,6 +10,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Unit;
+use App\Services\ImageResizer;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,8 +19,6 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Intervention\Image\Drivers\Gd\Driver;
-use Intervention\Image\ImageManager;
 
 /**
  * ONE controller for the whole catalog master data (single page + one modal):
@@ -208,12 +207,10 @@ class CatalogController extends Controller
 
         $abs = public_path("uploads/$dir");
         File::ensureDirectoryExists($abs);
-        $png  = $r->file($field)->getMimeType() === 'image/png';
-        $name = Str::lower(Str::random(14)) . ($png ? '.png' : '.jpg');
-        $img  = (new ImageManager(new Driver()))->read($r->file($field)->getRealPath())->scaleDown(width: $size, height: $size);
-        ($png ? $img->toPng() : $img->toJpeg(82))->save($abs . DIRECTORY_SEPARATOR . $name);
+        $name = Str::lower(Str::random(14));
+        $ext  = ImageResizer::save($r->file($field)->getRealPath(), $abs . DIRECTORY_SEPARATOR . $name, $size);
         $this->dropFile($old);
-        return "uploads/$dir/$name";
+        return "uploads/$dir/$name.$ext";
     }
 
     private function dropFile(?string $path): void

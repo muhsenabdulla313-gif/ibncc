@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="{{asset('css/cchub/ch-styles.css') }}">
   <link rel="stylesheet" href="{{asset('css/cchub/ch-trading.css') }}">
+   
   @stack('styles')
 </head>
 
@@ -56,7 +57,7 @@
               <a href="{{route('trading.myaccount')}}" class="header-profile-item" role="menuitem">
                 <i class="fa-regular fa-user" aria-hidden="true"></i> My Account
               </a>
-              <a href="{{route('seller.hub')}}" class="header-profile-item" role="menuitem">
+              <a href="{{route('seller.index')}}" class="header-profile-item" role="menuitem">
                 <i class="fa-regular fa-user" aria-hidden="true"></i> Seller Page
               </a>
               <form method="POST" action="{{ route('logout') }}">
@@ -156,11 +157,12 @@
 
   @include('components.auth-modals')
 
+  
 
- <script src="js/cchub/ch-mega-menu.js"></script>
-    <script src="js/cchub/ch-main.js"></script>
-    <script src="js/cchub/ch-trading.js"></script>
-    <script src="js/cchub/ch-login.js"></script>
+ <script src="{{ asset('js/cchub/ch-mega-menu.js') }}"></script>
+    <script src="{{ asset('js/cchub/ch-main.js') }}"></script>
+    <script src="{{ asset('js/cchub/ch-trading.js') }}"></script>
+    <script src="{{ asset('js/cchub/ch-login.js') }}"></script>
   @stack('scripts')
 </body>
 

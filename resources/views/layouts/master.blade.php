@@ -82,65 +82,58 @@
     </div>
 
     <nav class="nav-mobile" id="mobile-menu" aria-label="Mobile" hidden>
-      <div class="nav-mobile-card">
-        <a href="#events" class="header-notice header-notice--mobile" aria-label="Upcoming event announcement">
-          <span class="header-notice-icon" aria-hidden="true">
-            <i class="fa-solid fa-bell"></i>
-          </span>
-          <span class="header-notice-track">
-            <span class="header-notice-marquee">
-              <span class="header-notice-text">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8 PM — Monsoon Empress
-                Hotel, NH Bypass, Palarivattom, Kochi</span>
-              <span class="header-notice-text" aria-hidden="true">GLOBAL BUSINESS CONCLAVE — 13th September, 9 AM to 8 PM
-                — Monsoon Empress Hotel, NH Bypass, Palarivattom, Kochi</span>
-            </span>
-          </span>
-          <!-- <span class="header-notice-chip">GLC</span> -->
-        </a>
-        <div class="nav-mobile-list">
-          <a href="#home" class="nav-link active" data-section="home">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Home</strong>
-              <em>Welcome to IBNCC</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="#about" class="nav-link" data-section="about">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>About</strong>
-              <em>Know more about us</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="#events" class="nav-link" data-section="events">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Events</strong>
-              <em>Upcoming gatherings</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="networking.html" class="nav-link" data-section="networking">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-handshake"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Networking</strong>
-              <em>Build global connections</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-          <a href="ch-trading.html" class="nav-link" data-section="trading">
-            <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-arrow-right-arrow-left"></i></span>
-            <span class="nav-mobile-copy">
-              <strong>Trading</strong>
-              <em>Collaborate and grow</em>
-            </span>
-            <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
-          </a>
-        </div>
-      </div>
-    </nav>
+  <div class="nav-mobile-card">
+    <a href="#events" class="header-notice header-notice--mobile" aria-label="Upcoming event announcement">
+      <span class="header-notice-icon" aria-hidden="true">
+        <i class="fa-solid fa-bell"></i>
+      </span>
+      @include('partials.header-notice')
+    </a>
+
+    <div class="nav-mobile-list">
+      <a href="#home" class="nav-link active" data-section="home">
+        <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span>
+        <span class="nav-mobile-copy">
+          <strong>Home</strong>
+          <em>Welcome to IBNCC</em>
+        </span>
+        <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
+      </a>
+      <a href="#about" class="nav-link" data-section="about">
+        <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
+        <span class="nav-mobile-copy">
+          <strong>About</strong>
+          <em>Know more about us</em>
+        </span>
+        <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
+      </a>
+      <a href="#events" class="nav-link" data-section="events">
+        <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span>
+        <span class="nav-mobile-copy">
+          <strong>Events</strong>
+          <em>Upcoming gatherings</em>
+        </span>
+        <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
+      </a>
+      <a href="{{ route('network') }}" class="nav-link" data-section="networking">
+        <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-handshake"></i></span>
+        <span class="nav-mobile-copy">
+          <strong>Networking</strong>
+          <em>Build global connections</em>
+        </span>
+        <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
+      </a>
+      <a href="{{ route('trading') }}" class="nav-link" data-section="trading">
+        <span class="nav-mobile-icon" aria-hidden="true"><i class="fa-solid fa-arrow-right-arrow-left"></i></span>
+        <span class="nav-mobile-copy">
+          <strong>Trading</strong>
+          <em>Collaborate and grow</em>
+        </span>
+        <i class="fa-solid fa-chevron-right nav-mobile-chevron" aria-hidden="true"></i>
+      </a>
+    </div>
+  </div>
+</nav>
   </header>
 
   <main>
