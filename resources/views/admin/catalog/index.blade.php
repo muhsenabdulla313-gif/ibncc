@@ -1,6 +1,6 @@
-@extends('admin.layouts.app')
+@extends('layouts.admin')
 
-@section('content')
+@section('body')
 <div class="container-fluid cat-page">
   <div class="page-inner">
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">

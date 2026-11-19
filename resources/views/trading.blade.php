@@ -23,7 +23,7 @@
         @endif
     </article>
 @endforeach
-        </div>
+</div>
 
         <button class="hero-arrow hero-arrow-prev" id="heroPrev" aria-label="Previous slide">
             <i class="fa-solid fa-chevron-left"></i>
@@ -74,113 +74,23 @@
 
           <div class="marquee-viewport">
             <div class="marquee-track" data-marquee-track>
-              <article class="trade-card trade-card--grains">
-                <span class="trade-card-icon" aria-hidden="true"
-                  ><i class="fa-solid fa-wheat-awn"></i
-                ></span>
+              @foreach($tradingCategories as $cat)
+@php $tcMods = ['trade-card--grains','trade-card--agro','trade-card--electronics','trade-card--home','trade-card--spices','trade-card--packaging']; @endphp
+              <article class="trade-card {{ $tcMods[$loop->index % 6] }}">
+                <span class="trade-card-icon" aria-hidden="true"><i class="fa-solid fa-layer-group"></i></span>
                 <div class="trade-card-copy">
-                  <h2>Food Grains</h2>
-                  <p>Quality grains in bulk, delivered with trust</p>
-                  <a href="#grains" class="trade-card-cta"
-                    >Trade Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
+                  <h2>{{ $cat->name }}</h2>
+                  <p>{{ $cat->description ?? '' }}</p>
+                  <a href="{{ route('trading.products.index') }}?category={{ $cat->slug }}" class="trade-card-cta">Trade Now <i class="fa-solid fa-arrow-right"></i></a>
                 </div>
-                <img
-                  class="trade-card-img"
-                  src="https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80"
-                  alt="Sacks and bowls of food grains"
-                />
+                <img class="trade-card-img" src="{{ $cat->image ? asset($cat->image) : 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80' }}" alt="{{ $cat->name }}" />
+              </article>
+@endforeach
+                </div>
+               
               </article>
 
-              <article class="trade-card trade-card--agro">
-                <span class="trade-card-icon" aria-hidden="true"
-                  ><i class="fa-solid fa-seedling"></i
-                ></span>
-                <div class="trade-card-copy">
-                  <h2>Agro Products</h2>
-                  <p>Fresh produce for growing businesses</p>
-                  <a href="#agro" class="trade-card-cta"
-                    >Trade Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="trade-card-img"
-                  src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80"
-                  alt="Fresh vegetables in a wooden crate"
-                />
-              </article>
-
-              <article class="trade-card trade-card--electronics">
-                <span class="trade-card-icon" aria-hidden="true"
-                  ><i class="fa-solid fa-desktop"></i
-                ></span>
-                <div class="trade-card-copy">
-                  <h2>Electronics Wholesale</h2>
-                  <p>Top brands. Best prices. For your business</p>
-                  <a href="#electronics-trade" class="trade-card-cta"
-                    >Trade Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="trade-card-img"
-                  src="https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=600&q=80"
-                  alt="Electronics and appliances ready for wholesale"
-                />
-              </article>
-
-              <article class="trade-card trade-card--home">
-                <span class="trade-card-icon" aria-hidden="true"
-                  ><i class="fa-solid fa-couch"></i
-                ></span>
-                <div class="trade-card-copy">
-                  <h2>Home &amp; Furniture</h2>
-                  <p>Premium quality furniture for every space</p>
-                  <a href="#furniture" class="trade-card-cta"
-                    >Trade Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="trade-card-img"
-                  src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
-                  alt="Modern living room furniture"
-                />
-              </article>
-
-              <article class="trade-card trade-card--spices">
-                <span class="trade-card-icon" aria-hidden="true"
-                  ><i class="fa-solid fa-mortar-pestle"></i
-                ></span>
-                <div class="trade-card-copy">
-                  <h2>Spices &amp; Oils</h2>
-                  <p>Authentic flavours in wholesale quantities</p>
-                  <a href="#spices" class="trade-card-cta"
-                    >Trade Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="trade-card-img"
-                  src="https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=600&q=80"
-                  alt="Colourful spices and cooking oils"
-                />
-              </article>
-
-              <article class="trade-card trade-card--packaging">
-                <span class="trade-card-icon" aria-hidden="true"
-                  ><i class="fa-solid fa-box"></i
-                ></span>
-                <div class="trade-card-copy">
-                  <h2>Packaging Supplies</h2>
-                  <p>Reliable packing solutions for every shipment</p>
-                  <a href="#packaging" class="trade-card-cta"
-                    >Trade Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="trade-card-img"
-                  src="https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?auto=format&fit=crop&w=600&q=80"
-                  alt="Stacked packaging boxes ready for shipping"
-                />
-              </article>
+              
             </div>
           </div>
 
@@ -231,108 +141,25 @@
 
           <div class="marquee-viewport">
             <div class="marquee-track" data-marquee-track>
-              <article class="market-card market-card--luggage">
+              @foreach($marketplaceProducts as $p)
+@php $mcMods = ['market-card--luggage','market-card--watches','market-card--jewellery','market-card--kindle','market-card--fashion','market-card--beauty']; @endphp
+              <article class="market-card {{ $mcMods[$loop->index % 6] }}">
                 <div class="market-card-copy">
-                  <h3>Luggage Collection</h3>
-                  <p>Travel in style with top brands</p>
-                  <strong class="market-card-offer">Up to 50% Off</strong>
-                  <a href="#luggage" class="market-card-cta"
-                    >Shop Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
+                  <h3>{{ $p->title }}</h3>
+                  <p>{{ $p->short_description ?? '' }}</p>
+                  @if($p->min_price)
+                    <p class="market-card-price"><strong>Rs {{ $p->min_price }}</strong>@if($p->max_price && $p->max_price != $p->min_price) <span>Rs {{ $p->max_price }}</span>@endif</p>
+                  @endif
+                  <a href="{{ route('products.show', $p->slug) }}" class="market-card-cta">Shop Now <i class="fa-solid fa-arrow-right"></i></a>
                 </div>
-                <img
-                  class="market-card-img"
-                  src="https://images.unsplash.com/photo-1565022449183-c4a2d0b2a0a0?auto=format&fit=crop&w=500&q=80"
-                  alt="Red and blue travel luggage"
-                  onerror="
-                    this.src =
-                      'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80'
-                  "
-                />
+                <img class="market-card-img" src="{{ $p->images->first()?->url ?? 'https://images.unsplash.com/photo-1565022449183-c4a2d0b2a0a0?auto=format&fit=crop&w=500&q=80' }}" alt="{{ $p->title }}" />
+              </article>
+@endforeach
+                </div>
+               
               </article>
 
-              <article class="market-card market-card--watches">
-                <div class="market-card-copy">
-                  <h3>Watches &amp; More</h3>
-                  <p>Timeless style. Smart choices.</p>
-                  <strong class="market-card-offer">Up to 60% Off</strong>
-                  <a href="#watches" class="market-card-cta"
-                    >Explore Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="market-card-img"
-                  src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80"
-                  alt="Smartwatch and classic wristwatch"
-                />
-              </article>
-
-              <article class="market-card market-card--jewellery">
-                <div class="market-card-copy">
-                  <h3>Jewellery Collection</h3>
-                  <p>Shine with elegance</p>
-                  <strong class="market-card-offer">Up to 60% Off</strong>
-                  <a href="#jewellery" class="market-card-cta"
-                    >Shop Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="market-card-img"
-                  src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=500&q=80"
-                  alt="Gold jewellery necklace"
-                />
-              </article>
-
-              <article class="market-card market-card--kindle">
-                <div class="market-card-copy">
-                  <h3>Kindle Paperwhite</h3>
-                  <p>Your next great read awaits</p>
-                  <p class="market-card-price">
-                    <strong>₹16,999</strong>
-                    <span>₹21,999</span>
-                  </p>
-                  <a href="#kindle" class="market-card-cta"
-                    >Buy Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="market-card-img"
-                  src="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=500&q=80"
-                  alt="E-reader device"
-                />
-              </article>
-
-              <article class="market-card market-card--fashion">
-                <div class="market-card-copy">
-                  <h3>Fashion Essentials</h3>
-                  <p>Everyday style for the family</p>
-                  <strong class="market-card-offer">Up to 40% Off</strong>
-                  <a href="#fashion" class="market-card-cta"
-                    >Shop Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="market-card-img"
-                  src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=500&q=80"
-                  alt="Fashion clothing and accessories"
-                />
-              </article>
-
-              <article class="market-card market-card--beauty">
-                <div class="market-card-copy">
-                  <h3>Beauty &amp; Care</h3>
-                  <p>Glow with trusted brands</p>
-                  <strong class="market-card-offer">Up to 35% Off</strong>
-                  <a href="#beauty" class="market-card-cta"
-                    >Explore Now <i class="fa-solid fa-arrow-right"></i
-                  ></a>
-                </div>
-                <img
-                  class="market-card-img"
-                  src="assets/images/bt.jpg"
-                  alt="Beauty and personal care products"
-                />
-              </article>
+              
             </div>
           </div>
 
@@ -362,6 +189,7 @@
           <span class="trading-mode-tab-icon" aria-hidden="true">
             <i class="fa-solid fa-store"></i>
           </span>
+
           <span class="trading-mode-tab-label">Marketplace</span>
         </button>
         <button
@@ -397,323 +225,23 @@
         </header>
 
         <div class="category-gallery">
-          <a
-            href="ch-product-list.html?cat=electronics"
-            class="category-gallery-card"
-            style="--cat-bg: #e8eef5"
-          >
+@foreach($categories as $cat)
+          <div class="category-gallery-card" style="--cat-bg: #e8eef5">
             <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
+@foreach($cat->children->take(4) as $child)
+              <a href="{{ route('trading.products.index') }}?category={{ $child->slug }}"><img src="{{ $child->image ? asset($child->image) : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=200&q=80' }}" alt="{{ $child->name }}" /></a>
+@endforeach
             </div>
-            <div class="category-gallery-footer">
-              <strong>Electronics</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=appliances"
-            class="category-gallery-card"
-            style="--cat-bg: #eef2f6"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1585659722983-3a675dabf23d?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>TVs and Appliances</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=men"
-            class="category-gallery-card"
-            style="--cat-bg: #e8eef5"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img src="assets/images/glass2.jpg" alt="" />
-              <!-- <img
-                src="https://images.unsplash.com/photo-1542272454315-7ad9f8b4c3f6?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              /> -->
-              <img src="assets/images/men-outfit.jpg" alt="" />
-              <!-- <img
-                src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              /> -->
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Men</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=women"
-            class="category-gallery-card"
-            style="--cat-bg: #eaf4fb"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img src="assets/images/women-outfit.jpg" alt="" />
-              <!-- <img
-                src="https://images.unsplash.com/photo-1590874103328-eac38a67437f?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              /> -->
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Women</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=kids"
-            class="category-gallery-card"
-            style="--cat-bg: #eef6fb"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1519689373023-dd07c7988603?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Baby and Kids</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=home"
-            class="category-gallery-card"
-            style="--cat-bg: #ebe6df"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Home and Furniture</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=sports"
-            class="category-gallery-card"
-            style="--cat-bg: #e8f0ea"
-          >
-            <div class="category-gallery-media">
-              <img src="assets/images/sp.jpg" alt="" />
-              <img
-                src="https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Sports</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=sports"
-            class="category-gallery-card"
-            style="--cat-bg: #eef0f4"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img src="assets/images/bk.jpg" alt="" />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Books &amp; More</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=farm"
-            class="category-gallery-card"
-            style="--cat-bg: #eaf3e6"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1592419044706-39796d40f98c?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img src="assets/images/plant.jpg" alt="" />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Farm &amp; Garden</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
-
-          <a
-            href="ch-product-list.html?cat=food"
-            class="category-gallery-card"
-            style="--cat-bg: #fbf6e4"
-          >
-            <div class="category-gallery-media">
-              <img
-                src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-              <img
-                src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=200&q=80"
-                alt=""
-              />
-            </div>
-            <div class="category-gallery-footer">
-              <strong>Food Items</strong>
-              <span
-                >Explore
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
-              ></span>
-            </div>
-          </a>
+            <a href="{{ route('trading.products.index') }}?category={{ $cat->slug }}" class="category-gallery-footer" style="text-decoration:none;color:inherit;">
+              <strong>{{ $cat->name }}</strong>
+              <span>Explore <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
+            </a>
+          </div>
+@endforeach
         </div>
       </section>
 
-      <section
+        <section
         class="gallery-block"
         id="bestsellers"
         aria-labelledby="bestsellers-heading"

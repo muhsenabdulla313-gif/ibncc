@@ -96,3 +96,65 @@ The following components and modules have been fully implemented, migrated, and 
   - `resources/views/layouts/trading.blade.php`: Connected header cart link and dynamic cart badge.
 - [x] User Model:
   - Added `cartItems()` and `orders()` inverse relationships on `App\Models\User`.
+## Trading Homepage Dynamic Conversion (Partial) - 2026-11-19
+
+### Changed
+- app/Http/Controllers/TradingController.php: added queries for tradingCategories (root active categories), marketplaceProducts (published retail products with images/default variant), bestsellers.
+- resources/views/trading.blade.php: Trading Categories carousel and Marketplace Deals carousel converted to @foreach loops over DB records; modifier CSS classes cycled by loop index to preserve original styling; product images use ProductImage url accessor; fallback static images retained.
+
+### Not changed
+- Promotional banner slider untouched.
+- Browse by Category, Bestsellers, Similar to Your Searches remain static (pending).
+- No DB/migration changes.
+
+### Testing
+- php artisan view:cache passes.
+## Trading Homepage Dynamic Conversion (Partial) - 2026-11-19
+
+### Changed
+- app/Http/Controllers/TradingController.php: added queries for tradingCategories, marketplaceProducts, bestsellers.
+- resources/views/trading.blade.php: Trading Categories and Marketplace Deals carousels converted to @foreach loops; modifier CSS classes cycled by loop index; product images use ProductImage url accessor; fallback static images retained.
+
+### Not changed
+- Promotional banner slider untouched.
+- Browse by Category, Bestsellers, Similar to Your Searches remain static (pending).
+- No DB/migration changes.
+
+### Testing
+- php artisan view:cache passes.
+## Browse by Category Dynamic Conversion - 2026-11-19
+
+### Changed
+- resources/views/trading.blade.php: Browse by Category gallery converted to @foreach over root categories; names/images/links dynamic; fallback static images.
+
+### Testing
+- Pending view:cache due to memory; syntax expected OK.
+## Browse by Category Child Subcategories - 2026-11-19
+
+### Changed
+- resources/views/trading.blade.php: Browse by Category now renders parent cards with up to 4 child subcategory images, each linking to its child category; uses eager-loaded children; fallback images retained.
+
+### Testing
+- Blade compiles; pending full page test.
+## Bestsellers Dynamic Conversion - 2026-11-19
+
+### Changed
+- resources/views/trading.blade.php: Bestsellers grid converted to @foreach over $bestsellers; images/prices/links dynamic; fallback images retained.
+
+### Notes
+- Ordering currently by rating_count desc as fallback; true sales-based ranking pending OrderItem data verification.
+
+### Testing
+- Blade compile pending.
+## Bestsellers Design Restoration Note - 2026-11-19
+
+### Note
+- Original Bestsellers markup was not present in the last committed version (added by prior Antigravity work), so exact original styling could not be restored from git.
+- Current implementation uses bestseller-card/bestseller-media/bestseller-body/bestseller-title/bestseller-desc/bestseller-price/bestseller-cta classes.
+## Bestsellers Design Restored - 2026-11-19
+
+### Changed
+- resources/views/trading.blade.php: Bestsellers grid restored to original HTML structure (bestseller-card/media/h3/p/rating/price) with dynamic content.
+
+### Testing
+- Blade compiles; visual verification pending.
