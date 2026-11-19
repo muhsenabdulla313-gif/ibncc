@@ -1,97 +1,98 @@
-      document.addEventListener("DOMContentLoaded", function () {
-        const grid = document.getElementById("wishlistGrid");
-        const emptyState = document.getElementById("wishlistEmptyState");
-        const countEl = document.getElementById("itemCountNumber");
-        const toolbar = document.querySelector(".wishlist-toolbar");
-        const clearBtn = document.getElementById("btnClearWishlist");
-        const cartBadge = document.querySelector(".cart-badge");
+(function () {
+    'use strict';
+    const cfg = window.WISHLIST || {};
+    const KEY = 'cc_wishlist';
 
-        let currentCartCount =
-          parseInt(cartBadge ? cartBadge.textContent.trim() : "0", 10) || 0;
+    const read  = () => { try { return (JSON.parse(localStorage.getItem(KEY)) || []).map(Number); } catch (e) { return []; } };
+    const write = a  => { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) {} };
+    const toast = m  => { if (typeof window.pdToast === 'function') window.pdToast(m); };
 
-        function showToast(msg, isSuccess = true) {
-          const toast = document.getElementById("wishlistToast");
-          const msgEl = document.getElementById("wishlistToastMsg");
-          const icon = toast.querySelector("i");
-          if (!toast || !msgEl) return;
+    function paint(btn, on) {
+        btn.classList.toggle('is-wishlisted', on);
+        const i = btn.querySelector('i');
+        if (i) { i.classList.toggle('fa-solid', on); i.classList.toggle('fa-regular', !on); }
+        const t = on ? 'Remove from wishlist' : 'Add to wishlist';
+        btn.setAttribute('aria-label', t);
+        btn.title = t;
+    }
 
-          msgEl.textContent = msg;
-          if (icon) {
-            icon.className = isSuccess
-              ? "fa-solid fa-circle-check"
-              : "fa-solid fa-trash-can";
-          }
-          toast.classList.add("show");
-          setTimeout(() => toast.classList.remove("show"), 3000);
-        }
+    function pop(btn) {
+        btn.classList.remove('heart-pop');
+        void btn.offsetWidth;
+        btn.classList.add('heart-pop');
+    }
 
-        function updateItemCount() {
-          const remainingCards = grid.querySelectorAll(".wishlist-card");
-          const count = remainingCards.length;
-          if (countEl) countEl.textContent = count;
+    function post(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': cfg.csrf
+            },
+            body: JSON.stringify(body)
+        }).then(r => r.json().catch(() => ({})).then(d => ({ status: r.status, data: d })));
+    }
 
-          if (count === 0) {
-            if (grid) grid.style.display = "none";
-            if (toolbar) toolbar.style.display = "none";
-            if (emptyState) emptyState.style.display = "block";
-          } else {
-            if (grid) grid.style.display = "grid";
-            if (toolbar) toolbar.style.display = "flex";
-            if (emptyState) emptyState.style.display = "none";
-          }
-        }
+    function paintAll() {
+        const ids = read();
+        document.querySelectorAll('[data-wish]').forEach(btn => {
+            if (!cfg.auth) paint(btn, ids.includes(Number(btn.dataset.wish)));
+        });
+    }
 
-        if (grid) {
-          grid.addEventListener("click", function (e) {
-            const removeBtn = e.target.closest(".wishlist-remove-btn");
-            const cartBtn = e.target.closest(".wishlist-btn-cart");
+    /* guest toggle (localStorage) */
+    function guestToggle(btn, pid) {
+        let ids = read();
+        const on = !ids.includes(pid);
+        ids = on ? ids.concat(pid) : ids.filter(x => x !== pid);
+        write(ids);
+        paint(btn, on);
+        if (on) pop(btn);
+        toast(on ? 'Saved! Log in to keep it in your account.' : 'Removed from wishlist.');
+    }
 
-            if (removeBtn) {
-              const card = removeBtn.closest(".wishlist-card");
-              if (card) {
-                const title = card.getAttribute("data-title") || "Item";
-                card.classList.add("is-removing");
-                setTimeout(() => {
-                  card.remove();
-                  updateItemCount();
-                  showToast(title + " removed from wishlist", false);
-                }, 300);
-              }
-            } else if (cartBtn) {
-              const card = cartBtn.closest(".wishlist-card");
-              if (card) {
-                const title = card.getAttribute("data-title") || "Item";
-                currentCartCount += 1;
-                if (cartBadge) {
-                  cartBadge.textContent = currentCartCount;
-                  cartBadge.classList.add("bump");
-                  setTimeout(() => cartBadge.classList.remove("bump"), 300);
+    /* merge guest list into account after login */
+    function merge() {
+        if (!cfg.auth) return;
+        const ids = read();
+        if (!ids.length) return;
+        post(cfg.mergeUrl, { product_ids: ids }).then(r => {
+            if (r.data && r.data.success) {
+                localStorage.removeItem(KEY);
+                document.querySelectorAll('[data-wish]').forEach(btn => {
+                    if (ids.includes(Number(btn.dataset.wish))) paint(btn, true);
+                });
+                toast('Your saved items were added to your wishlist.');
+            }
+        }).catch(() => {});
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-wish]');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const pid = Number(btn.dataset.wish);
+        if (!pid || btn.disabled) return;
+
+        if (!cfg.auth) return guestToggle(btn, pid);
+
+        btn.disabled = true;
+        post(cfg.toggleUrl, { product_id: pid })
+            .then(r => {
+                if (r.status === 401) return guestToggle(btn, pid); // session expired
+                if (r.data && r.data.success) {
+                    paint(btn, !!r.data.wishlisted);
+                    if (r.data.wishlisted) pop(btn);
                 }
+                toast((r.data && r.data.message) || 'Done.');
+            })
+            .catch(() => toast('Something went wrong. Please try again.'))
+            .finally(() => { btn.disabled = false; });
+    });
 
-                card.classList.add("is-removing");
-                setTimeout(() => {
-                  card.remove();
-                  updateItemCount();
-                  showToast(title + " moved to cart!");
-                }, 300);
-              }
-            }
-          });
-        }
-
-        if (clearBtn) {
-          clearBtn.addEventListener("click", function () {
-            if (
-              confirm(
-                "Are you sure you want to remove all items from your wishlist?",
-              )
-            ) {
-              const cards = grid.querySelectorAll(".wishlist-card");
-              cards.forEach((c) => c.remove());
-              updateItemCount();
-              showToast("Wishlist cleared", false);
-            }
-          });
-        }
-      });
-    
+    paintAll();
+    merge();
+})();

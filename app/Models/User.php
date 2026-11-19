@@ -115,9 +115,24 @@ public function getRouteKeyName(): string
         return $this->role?->name === 'guest';
     }
     public function savedProfiles()
-{
-    return $this->belongsToMany(User::class, 'saved_profiles', 'user_id', 'saved_user_id')->withTimestamps();
-}
+    {
+        return $this->belongsToMany(User::class, 'saved_profiles', 'user_id', 'saved_user_id')->withTimestamps();
+    }
+
+    public function cartItems()
+    {
+        return $this->hasMany(CartItem::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class, 'buyer_id');
+    }
+
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
+    }
 
 public function blockedUsers()
 {

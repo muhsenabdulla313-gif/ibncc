@@ -3,192 +3,128 @@
 @php
     $noImg = asset('assets/images/no-image.avif');
 
-    // Safe image resolver: handles absolute URLs, public/uploads directly, or storage fallback
     $resolveImg = function ($path) use ($noImg) {
-        if (!$path) {
-            return $noImg;
-        }
-        if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://', '//'])) {
-            return $path;
-        }
+        if (!$path) return $noImg;
+        if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://', '//'])) return $path;
         $clean = ltrim($path, '/\\');
-        if (file_exists(public_path($clean))) {
-            return asset($clean);
-        }
-        if (file_exists(public_path('storage/' . $clean))) {
-            return asset('storage/' . $clean);
-        }
-        // Fallback to asset directly or noImg if missing
-        return file_exists(public_path($clean)) ? asset($clean) : $noImg;
+        if (file_exists(public_path($clean))) return asset($clean);
+        if (file_exists(public_path('storage/' . $clean))) return asset('storage/' . $clean);
+        return $noImg;
     };
 
-    $title = $product->title ?? $product->name ?? 'Product';
+    $title    = $product->title ?? $product->name ?? 'Product';
     $isRetail = ($mode === 'retail');
+    $unit     = $product->unit?->name ?? 'pieces';
 
     /* ---------- Images ---------- */
     $allImages = $product->images->sortBy('sort_order')->values();
 
     $imageData = $allImages->map(fn ($img) => [
-        'id'         => $img->id,
         'url'        => $resolveImg($img->path),
         'option_id'  => $img->attribute_option_id ? (int) $img->attribute_option_id : null,
         'variant_id' => $img->variant_id ? (int) $img->variant_id : null,
-        'is_primary' => (bool) $img->is_primary,
     ])->values()->all();
 
-    // General images (not tied to any specific variant option)
-    $generalImages = collect($imageData)->filter(fn ($i) => is_null($i['option_id']) && is_null($i['variant_id']))->values();
+    $generalImages  = collect($imageData)->filter(fn ($i) => is_null($i['option_id']) && is_null($i['variant_id']));
     $fallbackImages = $generalImages->isNotEmpty()
         ? $generalImages->pluck('url')->unique()->values()->all()
         : (collect($imageData)->pluck('url')->unique()->values()->all() ?: [$noImg]);
 
-    /* ---------- Variants & Axes ---------- */
+    /* ---------- Variants & axes ---------- */
     $variants = $product->variants->where('is_active', true)->values();
 
     $axes = $variants
-        ->flatMap(fn ($variant) => $variant->attributeValues)
-        ->filter(fn ($value) =>
-            $value->attribute &&
-            $value->attribute->is_variant_axis &&
-            $value->option
-        )
+        ->flatMap(fn ($v) => $v->attributeValues)
+        ->filter(fn ($val) => $val->attribute && $val->attribute->is_variant_axis && $val->option)
         ->groupBy('attribute_id')
         ->map(fn ($rows) => [
             'attribute' => $rows->first()->attribute,
             'options'   => $rows->pluck('option')->unique('id')->sortBy('sort_order')->values(),
         ]);
 
-    // Identify color axis (or default image axis)
-    $colorAxis = $axes->first(function ($axis) {
-        return strtolower($axis['attribute']->name) === 'color' || $axis['attribute']->input_type === 'color';
-    }) ?? $axes->first();
+    $colorAxis = $axes->first(fn ($a) =>
+        strtolower($a['attribute']->name) === 'color' || $a['attribute']->input_type === 'color'
+    );
     $colorAxisId = $colorAxis ? (int) $colorAxis['attribute']->id : null;
 
-    /* ---------- Selected Default Variant ---------- */
     $selectedVariant = $variants->firstWhere('is_default', true) ?? $variants->first();
 
     $selectedOptions = $selectedVariant
         ? $selectedVariant->attributeValues->pluck('attribute_option_id', 'attribute_id')
-            ->mapWithKeys(fn ($optId, $attrId) => [(string) $attrId => (int) $optId])
-            ->all()
+            ->mapWithKeys(fn ($o, $a) => [(string) $a => (int) $o])->all()
         : [];
 
-    /* ---------- Quantity & Stock Limits ---------- */
-    $minQty = $isRetail ? 1 : max(1, (int) ($product->min_order_qty ?? 1));
+    /* ---------- Qty & stock ---------- */
+    $minQty      = $isRetail ? 1 : max(1, (int) ($product->min_order_qty ?? 1));
     $maxOrderQty = $product->max_order_qty ? (int) $product->max_order_qty : null;
 
     $availStock = $selectedVariant
         ? max(0, (int) $selectedVariant->stock - (int) ($selectedVariant->reserved_stock ?? 0))
         : 0;
-    $isInStock = $product->track_stock ? ($availStock > 0 && $availStock >= $minQty) : true;
+    $isInStock = $product->track_stock ? ($availStock >= $minQty) : true;
 
-    /* ---------- Wholesale Price Tiers ---------- */
-    $wholesaleTiers = $product->priceTiers
-        ->where('price_type', 'wholesale')
-        ->sortBy('min_qty')
-        ->values();
+    /* ---------- Tiers & retail price ---------- */
+    $wholesaleTiers = $product->priceTiers->where('price_type', 'wholesale')->sortBy('min_qty')->values();
 
-    /* ---------- Initial Pricing ---------- */
-    if ($isRetail) {
-        $startPrice = (float) ($selectedVariant?->price ?? 0);
-        $startMrp   = (float) ($selectedVariant?->mrp ?? 0);
-        $startDiscount = ($startMrp > $startPrice && $startMrp > 0)
-            ? (int) round((($startMrp - $startPrice) / $startMrp) * 100)
-            : 0;
-    } else {
-        $matchingTier = $wholesaleTiers->first(function ($t) use ($minQty) {
-            return $t->min_qty <= $minQty && (is_null($t->max_qty) || $t->max_qty >= $minQty);
-        }) ?? $wholesaleTiers->first();
-        $startPrice = $matchingTier ? (float) $matchingTier->price : (float) ($product->priceTiers->min('price') ?? 0);
-        $startMrp   = 0;
-        $startDiscount = 0;
-    }
+    $startPrice    = (float) ($selectedVariant?->price ?? 0);
+    $startMrp      = (float) ($selectedVariant?->mrp ?? 0);
+    $startDiscount = ($startMrp > $startPrice && $startMrp > 0)
+        ? (int) round((($startMrp - $startPrice) / $startMrp) * 100) : 0;
 
-    /* ---------- Initial Gallery Images ---------- */
-    $selectedColorOptionId = $colorAxisId ? ($selectedOptions[(string) $colorAxisId] ?? null) : null;
-    $initialImages = [];
-    if ($selectedColorOptionId) {
-        $initialImages = collect($imageData)->filter(fn ($i) => $i['option_id'] === (int) $selectedColorOptionId)->pluck('url')->all();
-    }
-    if (empty($initialImages) && $selectedVariant) {
-        $initialImages = collect($imageData)->filter(fn ($i) => $i['variant_id'] === (int) $selectedVariant->id)->pluck('url')->all();
-    }
-    if (empty($initialImages)) {
-        $initialImages = $fallbackImages;
-    }
-    if (empty($initialImages)) {
-        $initialImages = [$noImg];
-    }
+    /* ---------- Initial gallery ---------- */
+    $selColor = $colorAxisId ? ($selectedOptions[(string) $colorAxisId] ?? null) : null;
+    $initialImages = $selColor
+        ? collect($imageData)->filter(fn ($i) => $i['option_id'] === (int) $selColor)->pluck('url')->unique()->values()->all()
+        : [];
+    if (empty($initialImages)) $initialImages = $fallbackImages;
 
-    /* ---------- JavaScript Data Payloads ---------- */
-    $variantData = $variants->map(function ($v) use ($product, $imageData, $fallbackImages, $colorAxisId) {
-        $optIds = $v->attributeValues->pluck('attribute_option_id', 'attribute_id')
-            ->mapWithKeys(fn ($optId, $attrId) => [(string) $attrId => (int) $optId])
-            ->all();
-
-        $colorOptId = $colorAxisId ? ($optIds[(string) $colorAxisId] ?? null) : null;
-
-        $variantImages = [];
-        if ($colorOptId) {
-            $variantImages = collect($imageData)->filter(fn ($i) => $i['option_id'] === (int) $colorOptId)->pluck('url')->all();
-        }
-        if (empty($variantImages)) {
-            $variantImages = collect($imageData)->filter(fn ($i) => $i['variant_id'] === (int) $v->id)->pluck('url')->all();
-        }
-        if (empty($variantImages)) {
-            $variantImages = $fallbackImages;
-        }
-
-        $stock = max(0, (int) $v->stock - (int) ($v->reserved_stock ?? 0));
-        $mrp = (float) ($v->mrp ?? 0);
-        $price = (float) ($v->price ?? 0);
-        $disc = ($mrp > $price && $mrp > 0) ? (int) round((($mrp - $price) / $mrp) * 100) : 0;
-
+    /* ---------- JS payloads ---------- */
+    $variantData = $variants->map(function ($v) use ($product) {
         return [
-            'id'               => $v->id,
-            'sku'              => $v->sku,
-            'price'            => $price,
-            'mrp'              => $mrp,
-            'discount_percent' => $disc,
-            'stock'            => $stock,
-            'track_stock'      => (bool) $product->track_stock,
-            'options'          => $optIds,
-            'images'           => array_values(array_unique($variantImages)),
+            'id'          => $v->id,
+            'sku'         => $v->sku,
+            'price'       => (float) ($v->price ?? 0),
+            'mrp'         => (float) ($v->mrp ?? 0),
+            'stock'       => max(0, (int) $v->stock - (int) ($v->reserved_stock ?? 0)),
+            'track_stock' => (bool) $product->track_stock,
+            'options'     => $v->attributeValues->pluck('attribute_option_id', 'attribute_id')
+                                ->mapWithKeys(fn ($o, $a) => [(string) $a => (int) $o])->all(),
         ];
     })->values()->all();
 
     $tiersData = $wholesaleTiers->map(fn ($t) => [
-        'id'         => $t->id,
         'variant_id' => $t->variant_id ? (int) $t->variant_id : null,
         'min_qty'    => (float) $t->min_qty,
         'max_qty'    => $t->max_qty !== null ? (float) $t->max_qty : null,
         'price'      => (float) $t->price,
     ])->values()->all();
 
-    /* ---------- Specifications Sheet ---------- */
+    /* ---------- Specs ---------- */
     $basicSpecs = array_filter([
-        'Brand'     => $product->brand?->name,
-        'Model'     => $product->model_no ?? null,
-        'Category'  => $product->category?->name,
-        'Unit'      => $product->unit?->name,
-        'HSN Code'  => $product->hsn_code ?? null,
+        'Brand'    => $product->brand?->name,
+        'Model'    => $product->model_no ?? null,
+        'Category' => $product->category?->name,
+        'Unit'     => $product->unit?->name,
+        'MOQ'      => (!$isRetail && $product->min_order_qty) ? $product->min_order_qty . ' ' . $unit : null,
     ]);
 
     $specs = $product->attributeValues
         ->filter(fn ($pav) => $pav->attribute && !$pav->attribute->is_variant_axis)
         ->groupBy('attribute_id')
-        ->map(function ($rows) {
-            $attribute = $rows->first()->attribute;
-            $values = $rows->map->display_value->filter()->unique()->implode(', ');
-            return [
-                'name'  => $attribute->name,
-                'value' => $values,
-            ];
-        })
-        ->filter(fn ($spec) => $spec['value'] !== '')
+        ->map(fn ($rows) => [
+            'name'  => $rows->first()->attribute->name,
+            'value' => $rows->map->display_value->filter()->unique()->implode(', '),
+        ])
+        ->filter(fn ($s) => $s['value'] !== '')
         ->values();
 
     $hasRating = (int) ($product->rating_count ?? 0) > 0;
+
+    $isWishlisted = auth()->check()
+        ? \App\Models\Wishlist::where('user_id', auth()->id())
+                               ->where('product_id', $product->id)
+                               ->exists()
+        : false;
 @endphp
 
 @section('title')
@@ -203,9 +139,13 @@
 <link rel="stylesheet" href="{{ asset('css/cchub/ch-styles.css') }}">
 <link rel="stylesheet" href="{{ asset('css/cchub/ch-product-list.css') }}">
 <link rel="stylesheet" href="{{ asset('css/cchub/ch-product-details.css') }}">
+<link rel="stylesheet" href="{{ asset('css/cchub/trading-product-list.css') }}">
+<link rel="stylesheet" href="{{ asset('css/cchub/trading-product-details.css') }}">
 
 <style>
     .pd-gallery-set[hidden] { display: none !important; }
+
+    /* ---------- Variant group card ---------- */
     .pd-prop-group {
         margin: 16px 0 0;
         padding: 16px 16px 18px;
@@ -225,6 +165,8 @@
         flex-wrap: wrap;
         gap: 10px;
     }
+
+    /* ---------- Pill ---------- */
     .pd-prop-option {
         display: inline-flex;
         align-items: center;
@@ -275,6 +217,60 @@
         border: 1px solid rgba(0, 0, 0, .25);
         flex-shrink: 0;
     }
+
+    /* ---------- Quantity ---------- */
+    .pd-qty-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 20px 0 6px;
+    }
+    .pd-qty-label {
+        font-size: 15px;
+        font-weight: 600;
+        color: #0f2a4a;
+    }
+    .cart-qty-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px;
+        background: #f4f7fb;
+        border: 1px solid #dde4ee;
+        border-radius: 12px;
+    }
+    .cart-qty-btn {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        border: 1px solid #dde4ee;
+        border-radius: 9px;
+        color: #0f2a4a;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background .15s ease, border-color .15s ease;
+    }
+    .cart-qty-btn:hover { background: #eef3fb; border-color: #93b4f5; }
+    .cart-qty-btn:active { background: #dbe6f7; }
+    .cart-qty-number {
+        min-width: 56px;
+        width: 70px;
+        text-align: center;
+        font-size: 16px;
+        font-weight: 600;
+        color: #0f2a4a;
+        background: transparent;
+        border: 0;
+        outline: 0;
+        -moz-appearance: textfield;
+    }
+    .cart-qty-number::-webkit-outer-spin-button,
+    .cart-qty-number::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* ---------- Thumbs ---------- */
     .pd-thumb { cursor: pointer; }
     .pd-thumb.is-active { outline: 2px solid #2563eb; }
     .pd-thumb img {
@@ -283,57 +279,72 @@
         height: 100%;
         object-fit: cover;
     }
-    .pd-channel-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: #f8fafc;
-        border: 1px dashed #cbd5e1;
-        border-radius: 8px;
-        font-size: 13px;
-        color: #475569;
-        margin-top: 10px;
+
+    /* ---------- Wholesale tier highlight + toast ---------- */
+/* ---------- Wholesale tier boxes ---------- */
+.pd-tier-prices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 18px 0 8px;
+    padding: 14px 0;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    max-width: 560px;
+}
+.pd-tier {
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    transition: background .15s ease, border-color .15s ease;
+}
+.pd-tier-price {
+    display: flex;
+    align-items: flex-start;
+    color: #0f172a;
+    font-weight: 800;
+    line-height: 1;
+}
+.pd-tier-currency { font-size: 22px; margin-top: 4px; margin-right: 2px; }
+.pd-tier-whole    { font-size: 34px; letter-spacing: -.5px; }
+.pd-tier-cents    { font-size: 13px; margin-top: 4px; margin-left: 2px; font-weight: 700; }
+.pd-tier-qty {
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+}
+
+/* active tier */
+.pd-tier.is-active-tier {
+    background: #fff7e6;
+    border-color: #f3c43a;
+}
+.pd-tier.is-active-tier .pd-tier-qty {
+    color: #d97706;
+    font-weight: 700;
+}    .pd-toast-msg {
+        position: fixed; bottom: 24px; right: 24px;
+        background: #0f172a; color: #fff;
+        padding: 12px 20px; border-radius: 10px;
+        display: none; align-items: center; gap: 10px;
+        z-index: 9999; font-size: 14px;
     }
-    .pd-channel-badge a {
-        color: #2563eb;
-        font-weight: 600;
-        text-decoration: underline;
+
+    /* ---------- Wishlist heart button ---------- */
+    .pd-icon-wish { transition: transform .15s ease; }
+    .pd-icon-wish i { transition: color .2s ease; }
+    .pd-icon-wish:hover i { color: #e11d48; }
+    .pd-icon-wish.is-wishlisted i { color: #e11d48; }
+    .pd-icon-wish.is-wishlisted { animation: none; }
+    @keyframes heartPop {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.35); }
+        70%  { transform: scale(0.9); }
+        100% { transform: scale(1); }
     }
-    .pd-tier-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 6px 10px;
-        border-radius: 6px;
-        margin-top: 4px;
-        transition: background .15s ease;
-    }
-    .pd-tier-item.is-active-tier {
-        background: #dbeafe;
-        color: #1e40af;
-        font-weight: 700;
-    }
-    .pd-toast-msg {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        background: #0f172a;
-        color: #fff;
-        padding: 12px 20px;
-        border-radius: 10px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        display: none;
-        align-items: center;
-        gap: 10px;
-        z-index: 9999;
-        font-size: 14px;
-        animation: fadeInToast 0.25s ease-out;
-    }
-    @keyframes fadeInToast {
-        from { opacity: 0; transform: translateY(12px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    .pd-icon-wish.heart-pop { animation: heartPop .35s ease forwards; }
 </style>
 @endpush
 
@@ -341,43 +352,32 @@
 <main class="pd-main">
     <article class="pd-product" data-id="{{ $product->id }}">
 
-        {{-- BREADCRUMB NAVIGATION --}}
         <nav class="pl-breadcrumb pd-breadcrumb" aria-label="Breadcrumb">
-            <a href="{{ route('trading') }}">Home</a>
-            <span aria-hidden="true">›</span>
+            <a href="{{ route('trading') }}">Home</a><span aria-hidden="true">›</span>
             <a href="{{ $isRetail ? route('products.index') : route('trading.products.index') }}">
                 {{ $isRetail ? 'Products' : 'Trading Products' }}
             </a>
             @if ($product->category)
                 @php
                     $catChain = [];
-                    for ($c = $product->category; $c; $c = $c->parent) {
-                        array_unshift($catChain, $c);
-                    }
+                    for ($c = $product->category; $c; $c = $c->parent) array_unshift($catChain, $c);
                 @endphp
                 @foreach ($catChain as $cNode)
                     <span aria-hidden="true">›</span>
-                    <a href="{{ $isRetail ? route('products.index', ['cat' => $cNode->slug]) : route('trading.products.index', ['cat' => $cNode->slug]) }}">
-                        {{ $cNode->name }}
-                    </a>
+                    <a href="{{ $isRetail ? route('products.index', ['cat' => $cNode->slug]) : route('trading.products.index', ['cat' => $cNode->slug]) }}">{{ $cNode->name }}</a>
                 @endforeach
             @endif
             <span aria-hidden="true">›</span>
             <span aria-current="page">{{ $title }}</span>
         </nav>
 
-        {{-- HERO SECTION: GALLERY + INFO --}}
         <section class="pd-hero">
 
-            {{-- =====================================================
-                 PRODUCT IMAGE GALLERY
-            ====================================================== --}}
+            {{-- GALLERY --}}
             <div class="pd-gallery">
                 <div class="pd-gallery-set is-active" id="pdGallery">
                     <div class="pd-main-media">
-                        <img class="pd-main-image" id="pdMainImage"
-                             src="{{ $initialImages[0] }}"
-                             alt="{{ $title }}"
+                        <img class="pd-main-image" id="pdMainImage" src="{{ $initialImages[0] }}" alt="{{ $title }}"
                              onerror="this.onerror=null;this.src='{{ $noImg }}'">
                     </div>
 
@@ -385,18 +385,14 @@
                         <button type="button" class="pd-thumb-arrow pd-thumb-prev" aria-label="Scroll thumbnails left">
                             <i class="fa-solid fa-chevron-left"></i>
                         </button>
-
                         <div class="pd-thumbs" id="pdThumbs" aria-label="Product thumbnails">
                             @foreach ($initialImages as $index => $image)
-                                <button type="button"
-                                        class="pd-thumb {{ $index === 0 ? 'is-active' : '' }}"
-                                        data-thumb-src="{{ $image }}"
-                                        aria-label="Show image {{ $index + 1 }}">
+                                <button type="button" class="pd-thumb {{ $index === 0 ? 'is-active' : '' }}"
+                                        data-thumb-src="{{ $image }}" aria-label="Show image {{ $index + 1 }}">
                                     <img src="{{ $image }}" alt="" onerror="this.onerror=null;this.src='{{ $noImg }}'">
                                 </button>
                             @endforeach
                         </div>
-
                         <button type="button" class="pd-thumb-arrow pd-thumb-next" aria-label="Scroll thumbnails right">
                             <i class="fa-solid fa-chevron-right"></i>
                         </button>
@@ -404,109 +400,81 @@
                 </div>
             </div>
 
-            {{-- =====================================================
-                 PRODUCT INFORMATION & CONTROLS
-            ====================================================== --}}
+            {{-- INFO --}}
             <div class="pd-info">
 
-                {{-- BRAND & ACTIONS --}}
                 <div class="pd-info-top">
-                    <span class="pd-brand">
-                        {{ $product->brand?->name ?? '' }}
-                    </span>
-
+                    <span class="pd-brand">{{ $product->brand?->name ?? '' }}</span>
                     <div class="pd-info-actions">
                         <button type="button" class="pd-icon-btn" id="pdShareBtn" aria-label="Share product">
                             <i class="fa-solid fa-share-nodes" aria-hidden="true"></i>
                         </button>
-                        <button type="button" class="pd-icon-btn pd-icon-wish" data-wish="{{ $product->id }}" aria-label="Add to wishlist">
-                            <i class="fa-regular fa-heart" aria-hidden="true"></i>
+                        <button type="button" class="pd-icon-btn pd-icon-wish {{ $isWishlisted ? 'is-wishlisted' : '' }}"
+                                id="pdWishlistBtn"
+                                data-wish="{{ $product->id }}"
+                                aria-label="{{ $isWishlisted ? 'Remove from wishlist' : 'Add to wishlist' }}"
+                                title="{{ $isWishlisted ? 'Remove from wishlist' : 'Add to wishlist' }}">
+                            <i class="{{ $isWishlisted ? 'fa-solid' : 'fa-regular' }} fa-heart" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>
 
-                {{-- PRODUCT TITLE --}}
                 <h1 class="pd-title">{{ $title }}</h1>
 
-                {{-- SHORT DESCRIPTION --}}
                 @if ($product->short_description)
                     <p class="pd-specs">{{ $product->short_description }}</p>
                 @endif
 
-                {{-- RATINGS & SKU META --}}
-                <div class="pd-meta" style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px;">
-                    @if ($hasRating)
-                        <span class="pd-rating-badge">
-                            {{ number_format($product->rating_avg, 1) }}
-                            <i class="fa-solid fa-star"></i>
-                        </span>
-                        <span class="pd-reviews">
-                            {{ number_format($product->rating_count) }} Ratings &amp; Reviews
-                        </span>
-                    @endif
-
-                    <span class="pd-sku-meta" style="font-size: 13px; color: #64748b; margin-left: auto;">
-                        SKU: <strong id="pdSkuMeta">{{ $selectedVariant?->sku ?? 'N/A' }}</strong>
-                    </span>
-                </div>
-
-                {{-- PRICING DISPLAY --}}
-                <div class="pd-price-wrap" style="align-items: baseline; gap: 10px;">
-                    <span class="pd-price" id="pdPrice">
-                        ₹{{ number_format($startPrice, 2) }}
-                    </span>
-
-                    @if ($isRetail)
-                        <span class="pd-mrp" id="pdMrp" style="{{ ($startMrp > $startPrice && $startMrp > 0) ? '' : 'display: none;' }}">
-                            ₹{{ number_format($startMrp, 2) }}
-                        </span>
-                        <span class="pd-discount" id="pdDiscount" style="{{ $startDiscount > 0 ? '' : 'display: none;' }}">
-                            {{ $startDiscount }}% off
-                        </span>
-                    @else
-                        <span class="pd-unit-label" id="pdUnitLabel" style="font-size: 14px; color: #64748b; font-weight: 500;">
-                            / {{ $product->unit?->name ?? 'unit' }} (wholesale)
-                        </span>
-                    @endif
-                </div>
-
-                {{-- CROSS-CHANNEL NOTIFICATION IF PRODUCT SUPPORTS BOTH --}}
-                @if ($product->sale_type === 'both')
-                    <div class="pd-channel-badge">
-                        @if ($isRetail)
-                            <i class="fa-solid fa-boxes-stacked" style="color: #2563eb;"></i>
-                            <span>Wholesale bulk deals available for this product:
-                                <a href="{{ route('trading.products.show', $product->slug) }}">View Wholesale Pricing</a>
-                            </span>
-                        @else
-                            <i class="fa-solid fa-bag-shopping" style="color: #2563eb;"></i>
-                            <span>Looking for single-unit retail purchase?
-                                <a href="{{ route('products.show', $product->slug) }}">Buy at Retail Store</a>
-                            </span>
-                        @endif
+                @if ($hasRating)
+                    <div class="pd-meta">
+                        <span class="pd-rating-badge">{{ number_format($product->rating_avg, 1) }} <i class="fa-solid fa-star"></i></span>
+                        <span class="pd-reviews">{{ number_format($product->rating_count) }} Ratings &amp; Reviews</span>
                     </div>
                 @endif
 
-                {{-- =====================================================
-                     DYNAMIC VARIANT ATTRIBUTES (COLOR, SIZE, ETC.)
-                ====================================================== --}}
+                {{-- PRICE --}}
+                @if ($isRetail)
+                    <div class="pd-price-wrap">
+                        <span class="pd-price" id="pdPrice">₹{{ number_format($startPrice, 2) }}</span>
+                        <span class="pd-mrp" id="pdMrp" style="{{ $startMrp > $startPrice ? '' : 'display:none;' }}">₹{{ number_format($startMrp, 2) }}</span>
+                        <span class="pd-discount" id="pdDiscount" style="{{ $startDiscount > 0 ? '' : 'display:none;' }}">{{ $startDiscount }}% off</span>
+                    </div>
+                @else
+                    <div class="pd-price-wrap pd-tier-prices" id="pdTierPrices" aria-label="Quantity-based wholesale pricing"></div>
+                @endif
+
+                {{-- QUANTITY (same position as static page) --}}
+                <div class="pd-qty-row">
+                    <span class="pd-qty-label">Quantity:</span>
+                    <div class="cart-qty-control" role="group" aria-label="Select quantity">
+                        <button type="button" class="cart-qty-btn btn-qty-minus" aria-label="Decrease quantity">
+                            <i class="fa-solid fa-minus" aria-hidden="true"></i>
+                        </button>
+                        <input type="number" class="cart-qty-input cart-qty-number" id="pdQty"
+                               min="{{ $minQty }}" @if($maxOrderQty) max="{{ $maxOrderQty }}" @endif
+                               value="{{ $minQty }}" inputmode="numeric" aria-label="Item quantity">
+                        <button type="button" class="cart-qty-btn btn-qty-plus" aria-label="Increase quantity">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- VARIANT GROUPS --}}
                 @foreach ($axes as $attrId => $axis)
                     @php
                         $attributeName = $axis['attribute']->name;
                         $isColor = strtolower($attributeName) === 'color' || $axis['attribute']->input_type === 'color';
                     @endphp
-
                     <div class="pd-prop-group">
                         <span class="pd-prop-title">{{ $attributeName }}</span>
-
-                        <div class="pd-prop-options" role="radiogroup" aria-label="{{ $attributeName }}" @if ($isColor) data-gallery-sync="color" @endif>
+                        <div class="pd-prop-options" role="radiogroup" aria-label="{{ $attributeName }}"
+                             @if ($isColor) data-gallery-sync="color" @endif>
                             @foreach ($axis['options'] as $option)
                                 <label class="pd-prop-option">
                                     <input type="radio"
                                            name="pd-attribute-{{ $product->id }}-{{ $attrId }}"
                                            value="{{ $option->id }}"
                                            data-attribute-id="{{ $attrId }}"
-                                           data-option-label="{{ $option->label }}"
                                            @checked((int) ($selectedOptions[(string) $attrId] ?? 0) === (int) $option->id)>
                                     <span>
                                         @if ($isColor && $option->color_hex)
@@ -522,121 +490,47 @@
 
                 <input type="hidden" id="selectedVariantId" value="{{ $selectedVariant?->id }}">
 
-                {{-- =====================================================
-                     QUANTITY CONTROLS
-                ====================================================== --}}
-                <div class="pd-qty-row">
-                    <span class="pd-qty-label">Quantity:</span>
-
-                    <div class="cart-qty-control" role="group" aria-label="Select quantity">
-                        <button type="button" class="cart-qty-btn btn-qty-minus" aria-label="Decrease quantity">
-                            <i class="fa-solid fa-minus" aria-hidden="true"></i>
-                        </button>
-                        <span class="cart-qty-number" id="pdQty" aria-live="polite">{{ $minQty }}</span>
-                        <button type="button" class="cart-qty-btn btn-qty-plus" aria-label="Increase quantity">
-                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                        </button>
-                    </div>
-
-                    <span style="font-size: 14px; color: #475569; font-weight: 500;">
-                        {{ $product->unit?->name ?? 'units' }}
-                    </span>
-
-                    @if ($minQty > 1)
-                        <small style="color: #64748b; font-size: 12px; margin-left: 6px;">
-                            (Min: {{ $minQty }})
-                        </small>
-                    @endif
-                </div>
-
-                {{-- =====================================================
-                     STOCK STATUS
-                ====================================================== --}}
+                {{-- STOCK --}}
                 <p class="pl-stock {{ $isInStock ? 'is-in' : 'is-out' }}" id="pdStock">
                     @if ($isInStock)
                         <i class="fa-solid fa-circle-check" aria-hidden="true"></i> In Stock
-                        @if ($product->track_stock && $availStock > 0 && $availStock <= 5)
-                            <small style="margin-left: 8px; color: #d97706; font-weight: 600;">(Only {{ $availStock }} left!)</small>
-                        @endif
                     @else
                         <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Out of Stock
                     @endif
                 </p>
 
-                {{-- =====================================================
-                     WHOLESALE PRICE TIERS (WHOLESALE MODE)
-                ====================================================== --}}
-                @if (!$isRetail && $wholesaleTiers->isNotEmpty())
-                    <div class="pd-offer" id="pdWholesaleOffers">
-                        <div style="font-weight: 700; color: #0f2a4a; margin-bottom: 6px;">
-                            <i class="fa-solid fa-tags" aria-hidden="true" style="color: #2563eb;"></i> Wholesale Volume Pricing:
-                        </div>
-                        <div class="pd-tier-list">
-                            @foreach ($wholesaleTiers as $tier)
-                                <div class="pd-tier-item {{ ($tier->min_qty <= $minQty && (is_null($tier->max_qty) || $tier->max_qty >= $minQty)) ? 'is-active-tier' : '' }}"
-                                     data-min-qty="{{ (float) $tier->min_qty }}"
-                                     data-max-qty="{{ $tier->max_qty !== null ? (float) $tier->max_qty : '' }}"
-                                     data-price="{{ (float) $tier->price }}"
-                                     data-variant-id="{{ $tier->variant_id ?? '' }}">
-                                    <span>
-                                        {{ $tier->min_qty }}{{ $tier->max_qty ? ' – ' . $tier->max_qty : '+' }} {{ $product->unit?->name ?? 'units' }}
-                                    </span>
-                                    <span>
-                                        ₹{{ number_format($tier->price, 2) }} / unit
-                                    </span>
-                                </div>
-                            @endforeach
-                        </div>
-
-                        @if ($product->min_order_qty)
-                            <div style="font-size: 12px; color: #64748b; margin-top: 6px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-                                Minimum Order Quantity (MOQ): <strong>{{ $product->min_order_qty }} {{ $product->unit?->name ?? 'units' }}</strong>
-                            </div>
-                        @endif
-                    </div>
+                {{-- OFFER LINE --}}
+                @if (!$isRetail)
+                    <p class="pd-offer">
+                        <i class="fa-solid fa-tags" aria-hidden="true"></i>
+                        Wholesale pricing · MOQ {{ number_format($minQty) }} {{ $unit }} · Volume discounts apply
+                    </p>
                 @endif
 
-                {{-- =====================================================
-                     PRODUCT ACTIONS: ADD TO CART & BUY NOW
-                ====================================================== --}}
+                {{-- ACTIONS --}}
                 <div class="pd-actions">
-                    <button type="button"
-                            class="pd-btn pd-btn-cart"
-                            id="pdAddCart"
-                            data-cart="{{ $product->id }}"
-                            @disabled(!$isInStock)>
-                        <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i> Add to Cart
+                    <button type="button" class="pd-btn pd-btn-cart" id="pdAddCart" data-cart="{{ $product->id }}" @disabled(!$isInStock)>
+                        <i class="fa-solid fa-cart-shopping"></i> Add to Cart
                     </button>
-
-                    <button type="button"
-                            class="pd-btn pd-btn-buy"
-                            id="pdBuyNow"
-                            @disabled(!$isInStock)>
-                        <i class="fa-solid fa-bolt" aria-hidden="true"></i> Buy Now
+                    <button type="button" class="pd-btn pd-btn-buy" id="pdBuyNow" @disabled(!$isInStock)>
+                        <i class="fa-solid fa-bolt"></i> Buy Now
                     </button>
                 </div>
 
-                {{-- =====================================================
-                     PRODUCT SPECIFICATIONS SHEET
-                ====================================================== --}}
+                {{-- SPECS --}}
                 <section class="pd-specs-card">
-                    <header class="pd-section-head">
-                        <h2>Product Details</h2>
-                    </header>
-
+                    <header class="pd-section-head"><h2>Product Details</h2></header>
                     <div class="pd-spec-grid">
                         <div class="pd-spec-row">
                             <div class="pd-spec-key">SKU</div>
                             <div class="pd-spec-value" id="pdSku">{{ $selectedVariant?->sku ?? 'N/A' }}</div>
                         </div>
-
                         @foreach ($basicSpecs as $key => $value)
                             <div class="pd-spec-row">
                                 <div class="pd-spec-key">{{ $key }}</div>
                                 <div class="pd-spec-value">{{ $value }}</div>
                             </div>
                         @endforeach
-
                         @foreach ($specs as $spec)
                             <div class="pd-spec-row">
                                 <div class="pd-spec-key">{{ $spec['name'] }}</div>
@@ -646,44 +540,18 @@
                     </div>
                 </section>
 
-                {{-- FULL DESCRIPTION (IF AVAILABLE) --}}
                 @if ($product->description && $product->description !== $product->short_description)
-                    <section class="pd-specs-card" style="margin-top: 24px;">
-                        <header class="pd-section-head">
-                            <h2>Description</h2>
-                        </header>
-                        <div style="padding: 16px 20px; color: #334155; line-height: 1.7; font-size: 14px;">
-                            {!! nl2br(e($product->description)) !!}
-                        </div>
+                    <section class="pd-specs-card">
+                        <header class="pd-section-head"><h2>Description</h2></header>
+                        <div style="padding:16px 20px;line-height:1.7;font-size:14px;">{!! nl2br(e($product->description)) !!}</div>
                     </section>
                 @endif
-
-                {{-- PRODUCT DOCUMENTS (IF AVAILABLE) --}}
-                @if ($product->documents && $product->documents->isNotEmpty())
-                    <section class="pd-specs-card" style="margin-top: 24px;">
-                        <header class="pd-section-head">
-                            <h2>Documents &amp; Manuals</h2>
-                        </header>
-                        <div style="padding: 14px 20px; display: flex; flex-direction: column; gap: 8px;">
-                            @foreach ($product->documents as $doc)
-                                <a href="{{ asset($doc->path) }}" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; color: #2563eb; font-weight: 500; text-decoration: none;">
-                                    <i class="fa-solid fa-file-pdf"></i> {{ $doc->title }}
-                                </a>
-                            @endforeach
-                        </div>
-                    </section>
-                @endif
-
             </div>
         </section>
     </article>
 </main>
 
-{{-- Visual Toast Feedback Container --}}
-<div class="pd-toast-msg" id="pdToast">
-    <i class="fa-solid fa-circle-check" style="color: #22c55e;"></i>
-    <span id="pdToastText">Action recorded</span>
-</div>
+<div class="pd-toast-msg" id="pdToast"><i class="fa-solid fa-circle-check" style="color:#22c55e"></i><span id="pdToastText"></span></div>
 @endsection
 
 @push('scripts')
@@ -699,301 +567,199 @@ document.addEventListener('DOMContentLoaded', function () {
     const tiers          = @json($tiersData);
     const minimumQty     = @json($minQty);
     const maxOrderQty    = @json($maxOrderQty);
-    const colorAxisId    = @json($colorAxisId);
+    const unitName       = @json($unit);
 
     const main = document.querySelector('.pd-product[data-id="{{ $product->id }}"]');
     if (!main) return;
 
-    const mainImg        = main.querySelector('#pdMainImage');
-    const thumbsEl       = main.querySelector('#pdThumbs');
-    const priceEl        = main.querySelector('#pdPrice');
-    const mrpEl          = main.querySelector('#pdMrp');
-    const discountEl     = main.querySelector('#pdDiscount');
-    const stockEl        = main.querySelector('#pdStock');
-    const idInput        = main.querySelector('#selectedVariantId');
-    const skuEl          = main.querySelector('#pdSku');
-    const skuMetaEl      = main.querySelector('#pdSkuMeta');
-    const cartBtn        = main.querySelector('#pdAddCart');
-    const buyBtn         = main.querySelector('#pdBuyNow');
-    const qtyEl          = main.querySelector('#pdQty');
-    const qtyPlus        = main.querySelector('.btn-qty-plus');
-    const qtyMinus       = main.querySelector('.btn-qty-minus');
-    const toastEl        = document.getElementById('pdToast');
-    const toastText      = document.getElementById('pdToastText');
-    const radios         = Array.from(main.querySelectorAll('.pd-prop-option input[data-attribute-id]'));
+    const mainImg   = main.querySelector('#pdMainImage');
+    const thumbsEl  = main.querySelector('#pdThumbs');
+    const tiersEl   = main.querySelector('#pdTierPrices');
+    const priceEl   = main.querySelector('#pdPrice');
+    const mrpEl     = main.querySelector('#pdMrp');
+    const discEl    = main.querySelector('#pdDiscount');
+    const stockEl   = main.querySelector('#pdStock');
+    const idInput   = main.querySelector('#selectedVariantId');
+    const skuEl     = main.querySelector('#pdSku');
+    const cartBtn   = main.querySelector('#pdAddCart');
+    const buyBtn    = main.querySelector('#pdBuyNow');
+    const qtyEl     = main.querySelector('#pdQty');
+    const qtyPlus   = main.querySelector('.btn-qty-plus');
+    const qtyMinus  = main.querySelector('.btn-qty-minus');
+    const toastEl   = document.getElementById('pdToast');
+    const toastText = document.getElementById('pdToastText');
+    const radios    = Array.from(main.querySelectorAll('.pd-prop-option input[data-attribute-id]'));
+    const colorInputs = Array.from(main.querySelectorAll('[data-gallery-sync="color"] input[data-attribute-id]'));
 
     let currentGalleryKey = '';
+    const fmt = n => Number(n).toLocaleString('en-IN');
 
-    function showToast(message) {
-        if (!toastEl || !toastText) return;
-        toastText.textContent = message;
+    function showToast(msg) {
+        if (!toastEl) return;
+        toastText.textContent = msg;
         toastEl.style.display = 'flex';
-        clearTimeout(toastEl._timer);
-        toastEl._timer = setTimeout(function () {
-            toastEl.style.display = 'none';
-        }, 3200);
+        clearTimeout(toastEl._t);
+        toastEl._t = setTimeout(() => toastEl.style.display = 'none', 3000);
     }
 
-    /* ---------- Selection Helpers ---------- */
-
-    function getSelectedOptions() {
-        const selected = {};
-        radios.forEach(function (r) {
-            if (r.checked) selected[String(r.dataset.attributeId)] = Number(r.value);
-        });
-        return selected;
+    /* ---------- selection ---------- */
+    function getSelection() {
+        const s = {};
+        radios.forEach(r => { if (r.checked) s[String(r.dataset.attributeId)] = Number(r.value); });
+        return s;
     }
-
-    function matchesVariant(variant, selection) {
-        return Object.keys(selection).every(function (id) {
-            return Number(variant.options[id]) === Number(selection[id]);
-        });
+    function matches(v, sel) {
+        return Object.keys(sel).every(id => Number(v.options[id]) === Number(sel[id]));
     }
+    function findVariant(sel) { return variants.find(v => matches(v, sel)) || null; }
 
-    function findVariant(selection) {
-        const allAxisIds = [...new Set(radios.map(r => String(r.dataset.attributeId)))];
-        if (Object.keys(selection).length !== allAxisIds.length) {
-            // Find first variant that matches all currently specified keys
-            return variants.find(v => matchesVariant(v, selection)) || null;
-        }
-        return variants.find(v => matchesVariant(v, selection)) || null;
-    }
-
-    function updateAvailableOptions(selection) {
-        radios.forEach(function (radio) {
-            const attrId = String(radio.dataset.attributeId);
-            const optVal = Number(radio.value);
-
-            // Test if keeping all other selections except this axis allows this option
+    function updateAvailable(sel) {
+        radios.forEach(r => {
+            const aid = String(r.dataset.attributeId);
             const test = {};
-            Object.keys(selection).forEach(function (k) {
-                if (k !== attrId) test[k] = selection[k];
-            });
-            test[attrId] = optVal;
-
-            radio.disabled = !variants.some(v => matchesVariant(v, test));
+            Object.keys(sel).forEach(k => { if (k !== aid) test[k] = sel[k]; });
+            test[aid] = Number(r.value);
+            r.disabled = !variants.some(v => matches(v, test));
         });
     }
 
-    /* ---------- Image Gallery ---------- */
-
+    /* ---------- gallery (Color axis only) ---------- */
     function renderGallery(images) {
-        if (!images || !images.length) images = [noImg];
+        if (!images.length) images = [noImg];
         const key = JSON.stringify(images);
         if (key === currentGalleryKey) return;
         currentGalleryKey = key;
 
         mainImg.removeAttribute('srcset');
         mainImg.src = images[0];
-
         thumbsEl.innerHTML = '';
-        images.forEach(function (src, index) {
+
+        images.forEach((src, i) => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'pd-thumb' + (index === 0 ? ' is-active' : '');
+            btn.className = 'pd-thumb' + (i === 0 ? ' is-active' : '');
             btn.dataset.thumbSrc = src;
-            btn.setAttribute('aria-label', 'Show image ' + (index + 1));
-
+            btn.setAttribute('aria-label', 'Show image ' + (i + 1));
             const im = document.createElement('img');
-            im.src = src;
-            im.alt = '';
+            im.src = src; im.alt = '';
             im.onerror = function () { this.onerror = null; this.src = noImg; };
-
             btn.appendChild(im);
             thumbsEl.appendChild(btn);
         });
     }
 
-    function showGalleryForVariant(variant, selection) {
-        let selectedColorOpt = null;
-        if (colorAxisId && selection[String(colorAxisId)]) {
-            selectedColorOpt = Number(selection[String(colorAxisId)]);
-        }
+    function showGallery(variant) {
+        const checked = colorInputs.find(r => r.checked);
+        const colorId = checked ? Number(checked.value) : null;
 
-        let images = [];
-        // 1. Color option specific images
-        if (selectedColorOpt) {
-            images = imageData
-                .filter(i => i.option_id === selectedColorOpt)
-                .map(i => i.url);
-        }
+        let images = colorId ? imageData.filter(i => i.option_id === colorId).map(i => i.url) : [];
+        if (!images.length && variant) images = imageData.filter(i => i.variant_id === variant.id).map(i => i.url);
+        if (!images.length) images = fallbackImages;
 
-        // 2. Variant specific images
-        if (!images.length && variant) {
-            images = imageData
-                .filter(i => i.variant_id === variant.id)
-                .map(i => i.url);
-        }
-
-        // 3. Fallback to general product images
-        if (!images.length) {
-            images = fallbackImages;
-        }
-
-        // Remove duplicates
-        images = Array.from(new Set(images));
-        renderGallery(images);
+        renderGallery(Array.from(new Set(images)));
     }
 
-    /* ---------- Stock & Pricing Updates ---------- */
+    /* ---------- tiers (wholesale) ---------- */
+    function tiersFor(variant) {
+        const own = variant ? tiers.filter(t => t.variant_id === variant.id) : [];
+        const list = own.length ? own : tiers.filter(t => !t.variant_id);
+        return list.slice().sort((a, b) => a.min_qty - b.min_qty);
+    }
 
-    function getMaxAllowedQuantity(variant) {
+    function renderTiers(variant, qty) {
+        if (!tiersEl) return;
+        const list = tiersFor(variant);
+        const active = list.filter(t => t.min_qty <= qty).pop() || list[0];
+
+        tiersEl.innerHTML = list.map(t => {
+            const parts = Number(t.price).toFixed(2).split('.');
+            const label = t.max_qty ? fmt(t.min_qty) + '-' + fmt(t.max_qty) : '≥' + fmt(t.min_qty);
+            return '<div class="pd-tier' + (t === active ? ' is-active-tier' : '') + '">' +
+                '<div class="pd-tier-price"><span class="pd-tier-currency">₹</span>' +
+                '<span class="pd-tier-whole">' + fmt(parts[0]) + '</span>' +
+                '<sup class="pd-tier-cents">' + parts[1] + '</sup></div>' +
+                '<div class="pd-tier-qty">' + label + ' ' + unitName + '</div></div>';
+        }).join('');
+    }
+
+    function updateRetailPrice(variant) {
+        if (!priceEl || !variant) return;
+        const f = n => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        priceEl.textContent = f(variant.price);
+        if (mrpEl && discEl) {
+            const show = variant.mrp > variant.price;
+            mrpEl.style.display = discEl.style.display = show ? '' : 'none';
+            if (show) {
+                mrpEl.textContent = f(variant.mrp);
+                discEl.textContent = Math.round(((variant.mrp - variant.price) / variant.mrp) * 100) + '% off';
+            }
+        }
+    }
+
+    /* ---------- stock / qty ---------- */
+    function maxAllowed(variant) {
         let max = 999999;
-        if (maxOrderQty && maxOrderQty > 0) {
-            max = maxOrderQty;
-        }
-        if (variant && variant.track_stock) {
-            max = Math.min(max, variant.stock);
-        }
+        if (maxOrderQty) max = maxOrderQty;
+        if (variant && variant.track_stock) max = Math.min(max, variant.stock);
         return max;
     }
 
     function updateStock(variant) {
-        const inStock = variant ? (!variant.track_stock || variant.stock >= minimumQty) : false;
-
-        stockEl.className = 'pl-stock ' + (inStock ? 'is-in' : 'is-out');
-        if (inStock) {
-            let note = '';
-            if (variant.track_stock && variant.stock <= 5) {
-                note = `<small style="margin-left: 8px; color: #d97706; font-weight: 600;">(Only ${variant.stock} left!)</small>`;
-            }
-            stockEl.innerHTML = `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> In Stock ${note}`;
-        } else {
-            stockEl.innerHTML = '<i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Out of Stock';
-        }
-
-        if (cartBtn) cartBtn.disabled = !inStock;
-        if (buyBtn)  buyBtn.disabled  = !inStock;
+        const ok = variant ? (!variant.track_stock || variant.stock >= minimumQty) : false;
+        stockEl.className = 'pl-stock ' + (ok ? 'is-in' : 'is-out');
+        stockEl.innerHTML = ok
+            ? '<i class="fa-solid fa-circle-check" aria-hidden="true"></i> In Stock'
+            : '<i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Out of Stock';
+        if (cartBtn) cartBtn.disabled = !ok;
+        if (buyBtn)  buyBtn.disabled  = !ok;
     }
 
-    function updatePrice(variant, qty) {
-        if (!priceEl) return;
-
-        if (isRetail) {
-            if (!variant || variant.price === null) return;
-            priceEl.textContent = '₹' + Number(variant.price).toLocaleString('en-IN', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-
-            if (mrpEl && discountEl) {
-                if (variant.mrp && Number(variant.mrp) > Number(variant.price)) {
-                    mrpEl.textContent = '₹' + Number(variant.mrp).toLocaleString('en-IN', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    });
-                    mrpEl.style.display = '';
-                    const disc = Math.round(((variant.mrp - variant.price) / variant.mrp) * 100);
-                    discountEl.textContent = disc + '% off';
-                    discountEl.style.display = '';
-                } else {
-                    mrpEl.style.display = 'none';
-                    discountEl.style.display = 'none';
-                }
-            }
-        } else {
-            // Wholesale tiered pricing based on quantity
-            let activeTier = null;
-            if (tiers && tiers.length) {
-                // First try matching variant-specific tiers
-                if (variant) {
-                    activeTier = tiers.find(t => t.variant_id === variant.id && t.min_qty <= qty && (!t.max_qty || t.max_qty >= qty));
-                }
-                // Fallback to general tiers
-                if (!activeTier) {
-                    activeTier = tiers.find(t => !t.variant_id && t.min_qty <= qty && (!t.max_qty || t.max_qty >= qty));
-                }
-                // Fallback to highest or lowest tier
-                if (!activeTier) {
-                    activeTier = tiers.slice().sort((a,b) => a.min_qty - b.min_qty)[0];
-                }
-            }
-
-            if (activeTier) {
-                priceEl.textContent = '₹' + Number(activeTier.price).toLocaleString('en-IN', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-
-                // Highlight active tier in wholesale list
-                document.querySelectorAll('.pd-tier-item').forEach(function (el) {
-                    const min = Number(el.dataset.minQty);
-                    const max = el.dataset.maxQty !== '' ? Number(el.dataset.maxQty) : null;
-                    const match = (min <= qty && (!max || max >= qty));
-                    el.classList.toggle('is-active-tier', match);
-                });
-            }
-        }
+    function clampQty(variant) {
+        let q = parseInt(qtyEl.value, 10);
+        if (isNaN(q) || q < minimumQty) q = minimumQty;
+        const max = maxAllowed(variant);
+        if (q > max) { q = Math.max(minimumQty, max); showToast('Maximum available quantity is ' + max); }
+        qtyEl.value = q;
+        return q;
     }
 
-    /* ---------- Master Update Routine ---------- */
+    function refreshPricing() {
+        const variant = findVariant(getSelection());
+        const q = clampQty(variant);
+        if (isRetail) updateRetailPrice(variant); else renderTiers(variant, q);
+    }
 
+    /* ---------- master update ---------- */
     function updateProduct() {
-        let selection = getSelectedOptions();
+        const sel = getSelection();
+        updateAvailable(sel);
+        const variant = findVariant(sel);
 
-        // Update disabled state for unavailable combinations
-        updateAvailableOptions(selection);
+        idInput.value = variant ? variant.id : '';
+        if (skuEl) skuEl.textContent = variant?.sku || 'N/A';
 
-        let variant = findVariant(selection);
-
-        if (!variant) {
-            idInput.value = '';
-            if (skuEl)     skuEl.textContent     = 'N/A';
-            if (skuMetaEl) skuMetaEl.textContent = 'N/A';
-            updateStock(null);
-            showGalleryForVariant(null, selection);
-            return;
-        }
-
-        idInput.value = variant.id;
-        if (skuEl)     skuEl.textContent     = variant.sku || 'N/A';
-        if (skuMetaEl) skuMetaEl.textContent = variant.sku || 'N/A';
-
-        // Clamp quantity to stock limits
-        const maxAllowed = getMaxAllowedQuantity(variant);
-        let curQty = Number(qtyEl.textContent);
-        if (curQty < minimumQty) {
-            curQty = minimumQty;
-            qtyEl.textContent = curQty;
-        } else if (variant.track_stock && curQty > maxAllowed) {
-            curQty = Math.max(minimumQty, maxAllowed);
-            qtyEl.textContent = curQty;
-        }
-
-        updatePrice(variant, curQty);
         updateStock(variant);
-        showGalleryForVariant(variant, selection);
+        showGallery(variant);
+        refreshPricing();
     }
 
-    /* ---------- Radio Event Listener (Handles Smart Option Switching) ---------- */
+    radios.forEach(r => r.addEventListener('change', function (e) {
+        const aid = String(e.target.dataset.attributeId);
+        const oid = Number(e.target.value);
 
-    radios.forEach(function (r) {
-        r.addEventListener('change', function (e) {
-            const clickedAttrId = String(e.target.dataset.attributeId);
-            const clickedOptId  = Number(e.target.value);
-
-            let selection = getSelectedOptions();
-            let variant   = findVariant(selection);
-
-            // If the combination of previous selection + new click is unavailable,
-            // smartly switch other axes to the first valid variant having this clicked option
-            if (!variant) {
-                const altVariant = variants.find(v => Number(v.options[clickedAttrId]) === clickedOptId);
-                if (altVariant) {
-                    radios.forEach(function (radio) {
-                        const aId = String(radio.dataset.attributeId);
-                        if (aId !== clickedAttrId && Number(altVariant.options[aId]) === Number(radio.value)) {
-                            radio.checked = true;
-                        }
-                    });
-                }
+        if (!findVariant(getSelection())) {
+            const alt = variants.find(v => Number(v.options[aid]) === oid);
+            if (alt) {
+                radios.forEach(x => {
+                    const xa = String(x.dataset.attributeId);
+                    if (xa !== aid && Number(alt.options[xa]) === Number(x.value)) x.checked = true;
+                });
             }
-            updateProduct();
-        });
-    });
+        }
+        updateProduct();
+    }));
 
-    /* ---------- Thumbnails & Carousel Arrows ---------- */
-
+    /* ---------- thumbs & arrows ---------- */
     main.addEventListener('click', function (e) {
         const thumb = e.target.closest('.pd-thumb');
         if (thumb && main.contains(thumb)) {
@@ -1004,108 +770,137 @@ document.addEventListener('DOMContentLoaded', function () {
             thumbsEl.querySelectorAll('.pd-thumb').forEach(t => t.classList.toggle('is-active', t === thumb));
             return;
         }
-
         const arrow = e.target.closest('.pd-thumb-arrow');
         if (arrow && main.contains(arrow)) {
             const dir = arrow.classList.contains('pd-thumb-next') ? 1 : -1;
-            thumbsEl.scrollBy({
-                left: dir * Math.max(160, thumbsEl.clientWidth * 0.7),
-                behavior: 'smooth'
-            });
+            thumbsEl.scrollBy({ left: dir * Math.max(160, thumbsEl.clientWidth * 0.7), behavior: 'smooth' });
         }
     });
 
-    /* ---------- Quantity Controls ---------- */
+    /* ---------- quantity ---------- */
+    qtyPlus  && qtyPlus.addEventListener('click',  () => { qtyEl.value = (parseInt(qtyEl.value, 10) || minimumQty) + 1; refreshPricing(); });
+    qtyMinus && qtyMinus.addEventListener('click', () => { qtyEl.value = (parseInt(qtyEl.value, 10) || minimumQty) - 1; refreshPricing(); });
+    qtyEl.addEventListener('input',  () => {
+        const variant = findVariant(getSelection());
+        const q = parseInt(qtyEl.value, 10);
+        if (!isNaN(q) && !isRetail) renderTiers(variant, q);
+    });
+    qtyEl.addEventListener('change', refreshPricing);
+    qtyEl.addEventListener('blur',   refreshPricing);
 
-    if (qtyPlus) {
-        qtyPlus.addEventListener('click', function () {
-            const selection = getSelectedOptions();
-            const variant   = findVariant(selection);
-            const maxAllowed = getMaxAllowedQuantity(variant);
-            const current   = Number(qtyEl.textContent);
-
-            if (current + 1 <= maxAllowed) {
-                const nextQty = current + 1;
-                qtyEl.textContent = nextQty;
-                updatePrice(variant, nextQty);
-            } else {
-                showToast('Maximum available quantity limit reached (' + maxAllowed + ')');
-            }
-        });
-    }
-
-    if (qtyMinus) {
-        qtyMinus.addEventListener('click', function () {
-            const selection = getSelectedOptions();
-            const variant   = findVariant(selection);
-            const current   = Number(qtyEl.textContent);
-
-            if (current - 1 >= minimumQty) {
-                const nextQty = current - 1;
-                qtyEl.textContent = nextQty;
-                updatePrice(variant, nextQty);
-            } else {
-                showToast('Minimum order quantity is ' + minimumQty);
-            }
-        });
-    }
-
-    /* ---------- Cart / Buy Now Integration ---------- */
-
+    /* ---------- cart / buy / share ---------- */
     window.pdSelection = function () {
-        const selection = getSelectedOptions();
-        const variant   = findVariant(selection);
+        const variant = findVariant(getSelection());
         return {
             product_id: {{ $product->id }},
             variant_id: variant ? variant.id : (idInput.value ? Number(idInput.value) : null),
             sku: variant ? variant.sku : null,
-            qty: Number(qtyEl.textContent),
+            qty: parseInt(qtyEl.value, 10) || minimumQty,
             mode: isRetail ? 'retail' : 'wholesale'
         };
     };
 
-    if (cartBtn) {
-        cartBtn.addEventListener('click', function () {
-            const payload = window.pdSelection();
-            if (!payload.variant_id && variants.length > 0) {
-                showToast('Please select all product options.');
-                return;
-            }
-            showToast('Ready for cart: ' + payload.qty + ' item(s) selected.');
-        });
-    }
+    cartBtn && cartBtn.addEventListener('click', function () {
+        const p = window.pdSelection();
+        if (!p.variant_id && variants.length) {
+            showToast('Please select all product options.');
+            return;
+        }
+        if (p.qty <= 0) {
+            showToast('Please choose a valid quantity.');
+            return;
+        }
 
-    if (buyBtn) {
-        buyBtn.addEventListener('click', function () {
-            const payload = window.pdSelection();
-            if (!payload.variant_id && variants.length > 0) {
-                showToast('Please select all product options.');
-                return;
+        cartBtn.disabled = true;
+        const originalText = cartBtn.innerHTML;
+        cartBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+
+        fetch('{{ route('cart.add') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                product_id: p.product_id,
+                variant_id: p.variant_id,
+                qty: p.qty,
+                mode: p.mode
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            cartBtn.disabled = false;
+            cartBtn.innerHTML = originalText;
+            if (data.success) {
+                showToast(data.message || 'Added to cart successfully!');
+                document.querySelectorAll('.cart-badge').forEach(b => b.textContent = data.cart_count);
+            } else {
+                showToast(data.message || 'Could not add to cart.');
             }
-            showToast('Proceeding to checkout with ' + payload.qty + ' item(s)...');
+        })
+        .catch(err => {
+            cartBtn.disabled = false;
+            cartBtn.innerHTML = originalText;
+            showToast('Something went wrong. Please try again.');
         });
-    }
+    });
+
+    buyBtn && buyBtn.addEventListener('click', function () {
+        const p = window.pdSelection();
+        if (!p.variant_id && variants.length) {
+            showToast('Please select all product options.');
+            return;
+        }
+        if (p.qty <= 0) {
+            showToast('Please choose a valid quantity.');
+            return;
+        }
+
+        buyBtn.disabled = true;
+        const originalText = buyBtn.innerHTML;
+        buyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+
+        fetch('{{ route('cart.buyNow') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                product_id: p.product_id,
+                variant_id: p.variant_id,
+                qty: p.qty,
+                mode: p.mode
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                buyBtn.disabled = false;
+                buyBtn.innerHTML = originalText;
+                showToast(data.message || 'Could not proceed to checkout.');
+            }
+        })
+        .catch(err => {
+            buyBtn.disabled = false;
+            buyBtn.innerHTML = originalText;
+            showToast('Something went wrong. Please try again.');
+        });
+    });
 
     const shareBtn = document.getElementById('pdShareBtn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', function () {
-            if (navigator.share) {
-                navigator.share({
-                    title: document.title,
-                    url: window.location.href
-                }).catch(function () {});
-            } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(window.location.href).then(function () {
-                    showToast('Product link copied to clipboard!');
-                });
-            } else {
-                showToast('Share link: ' + window.location.href);
-            }
-        });
-    }
+    shareBtn && shareBtn.addEventListener('click', function () {
+        if (navigator.share) navigator.share({ title: document.title, url: location.href }).catch(() => {});
+        else if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(() => showToast('Product link copied!'));
+    });
 
-    /* ---------- Initial Setup Run ---------- */
     updateProduct();
 });
+window.pdToast = showToast;
 </script>
 @endpush

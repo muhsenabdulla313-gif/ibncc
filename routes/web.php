@@ -24,6 +24,9 @@ use App\Http\Controllers\Seller\SellerCatalogController;
 use App\Http\Controllers\Seller\SellerController;
 use App\Http\Controllers\Seller\SellerOrderController;
 use App\Http\Controllers\Seller\SellerProductController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\WishlistController;
 
 
 require __DIR__ . '/auth.php';
@@ -222,6 +225,9 @@ Route::post('/logout', [RegisterController::class, 'logout'])->middleware('auth'
 /* ---------------- My account (trading) ---------------- */
 Route::get('/trading/my_accout_details', [MyAccountController::class, 'show'])->name('trading.myaccount');
 Route::post('/trading/my_account/update', [MyAccountController::class, 'update'])->name('network.myaccount.update');
+Route::post('/trading/my_account/password', [MyAccountController::class, 'password'])->name('trading.myaccount.password');
+Route::post('/trading/my_account/address', [MyAccountController::class, 'saveAddress'])->name('trading.myaccount.address.save');
+Route::delete('/trading/my_account/address/{address}', [MyAccountController::class, 'deleteAddress'])->name('trading.myaccount.address.delete');
 
 /* ---------------- Profile (logged-in users only) ---------------- */
 Route::middleware('auth')->prefix('profile')->group(function () {
@@ -263,6 +269,25 @@ Route::get('/trading/products', [ProductListingController::class, 'trading'])
 
 Route::get('/trading/products/{slug}', [ProductListingController::class, 'showTrading'])
     ->name('trading.products.show');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist.index');
+    Route::post('/wishlist/clear', [WishlistController::class, 'clear'])->name('wishlist.clear');
+    Route::post('/wishlist/merge', [WishlistController::class, 'merge'])->name('wishlist.merge');
+});
+Route::post('/wishlist/toggle', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
+Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
+Route::post('/cart/add', [CartController::class, 'add'])->name('cart.add');
+Route::post('/cart/update', [CartController::class, 'update'])->name('cart.update');
+Route::post('/cart/remove', [CartController::class, 'remove'])->name('cart.remove');
+Route::get('/cart/count', [CartController::class, 'count'])->name('cart.count');
+Route::post('/buy-now', [CartController::class, 'buyNow'])->name('cart.buyNow');
+
+/* ---------------- Checkout & Orders ---------------- */
+Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
+Route::post('/checkout', [CheckoutController::class, 'process'])->name('checkout.process');
+Route::get('/order/success/{order_no}', [CheckoutController::class, 'success'])->name('order.success');
+
 
 
 

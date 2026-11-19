@@ -72,9 +72,14 @@
           <a href="#login" class="btn-login">Login</a>
         @endauth
 
-        <a href="wish-list.html" class="icon-btn" aria-label="Wishlist"><i class="fa-regular fa-heart"></i></a>
-        <a href="cart.html" class="icon-btn cart-btn" aria-label="Shopping cart">
-          <i class="fa-solid fa-cart-shopping"></i><span class="cart-badge">0</span>
+        @php
+          $cartBadgeCount = session()->has('cart') ? count(session('cart')) : 0;
+          if (auth()->check() && $cartBadgeCount === 0) {
+              $cartBadgeCount = \App\Models\CartItem::where('user_id', auth()->id())->count();
+          }
+        @endphp
+<a href="{{ route('wishlist.index') }}" class="icon-btn" aria-label="Wishlist"><i class="fa-regular fa-heart"></i></a>        <a href="{{ route('cart.index') }}" class="icon-btn cart-btn" aria-label="Shopping cart">
+          <i class="fa-solid fa-cart-shopping"></i><span class="cart-badge">{{ $cartBadgeCount }}</span>
         </a>
       </div>
     </div>
@@ -157,7 +162,15 @@
 
   @include('components.auth-modals')
 
-  
+  <script>
+    window.WISHLIST = {
+        auth: @json(auth()->check()),
+        toggleUrl: @json(route('wishlist.toggle')),
+        mergeUrl: @json(auth()->check() ? route('wishlist.merge') : null),
+        csrf: @json(csrf_token())
+    };
+</script>
+<script src="{{ asset('js/cchub/wish-list.js') }}" defer></script>
 
  <script src="{{ asset('js/cchub/ch-mega-menu.js') }}"></script>
     <script src="{{ asset('js/cchub/ch-main.js') }}"></script>

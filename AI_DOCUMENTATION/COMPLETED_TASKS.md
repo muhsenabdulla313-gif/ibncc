@@ -75,3 +75,24 @@ The following components and modules have been fully implemented, migrated, and 
   - `ProductListingController::loadProduct()` eager-loads `category.parent.parent`, `attributeValues.attribute`, and `attributeValues.option`.
   - `ProductListingController::getCategories()` eager-loads `children.children` up to 3 levels deep.
   - Removed duplicate route registrations of `/products` and `/trading/products` from `routes/web.php`.
+
+## 6. Buyer Shopping Cart & Checkout (100% Completed & Verified)
+- [x] `CartController`:
+  - `index`: Displays cart items, image resolution, variant specs, server-side pricing, wholesale volume tiers, subtotal, savings discount, and grand total.
+  - `add`: Validates product, variant, MOQ for wholesale, and stock. Updates existing cart items without duplicates. Updates session and `CartItem` table. Returns new cart badge count.
+  - `update`: Dynamically updates quantity via AJAX, validates wholesale MOQ and stock, recalculates applicable wholesale tier price, and updates line/cart totals.
+  - `remove`: Removes item from session and database, recalculating totals and rendering empty state if needed.
+  - `count`: Returns active cart item count.
+  - `buyNow`: Direct purchase session isolation (`buy_now_item`) that bypasses regular cart and immediately redirects to checkout without disturbing existing cart items.
+- [x] `CheckoutController`:
+  - `index`: Supports both cart checkout and isolated Buy Now checkout. Pre-fills authenticated buyer information and saved addresses.
+  - `process`: Validates delivery address, creates unique order (`Order`), creates seller-partitioned order line items (`OrderItem`), decrements stock, records stock movements (`StockMovement`), and clears cart or Buy Now session.
+  - `success`: Displays order confirmation, order number, delivery destination, and ordered items summary.
+- [x] Blade Templates:
+  - `resources/views/cart/index.blade.php`: Preserves design from `public/cart.html`.
+  - `resources/views/cart/checkout.blade.php`: Preserves design from `public/payment.html`.
+  - `resources/views/cart/success.blade.php`: Order confirmation view.
+  - `resources/views/catalog/details.blade.php`: Connected Add to Cart and Buy Now fetch handlers.
+  - `resources/views/layouts/trading.blade.php`: Connected header cart link and dynamic cart badge.
+- [x] User Model:
+  - Added `cartItems()` and `orders()` inverse relationships on `App\Models\User`.

@@ -7,30 +7,29 @@ The following tasks are required to bring the Trading module to 100% completion:
 ## High Priority (Core E-Commerce Gaps)
 
 ### 1. Buyer Shopping Cart Implementation
-- [ ] Create `CartController` with actions:
-  - `index`: View current cart items for authenticated user (and guest session support).
-  - `store`: Add product/variant to cart with quantity validation (respecting retail MOQ = 1, wholesale MOQ = `min_order_qty`).
-  - `update`: Update quantity of existing cart item.
-  - `destroy`: Remove item from cart.
+- [x] Create `CartController` with actions:
+  - `index`: View current cart items for authenticated user and guest session.
+  - `add`: Add product/variant to cart with quantity validation (retail MOQ = 1, wholesale MOQ = `min_order_qty`).
+  - `update`: Update quantity of existing cart item with dynamic wholesale tier recalculation.
+  - `remove`: Remove item from cart.
   - `count`: Return active cart item count for header badge.
-- [ ] Convert `public/cart.html` and `public/trading_cart.html` to Blade:
-  - `resources/views/cart/index.blade.php` (or `resources/views/trading/cart.blade.php`).
-- [x] Wire up "Add to Cart" and "Buy Now" client hooks in `resources/views/catalog/details.blade.php` (`window.pdSelection()` ready for CartController).
+  - `buyNow`: Direct Buy Now checkout flow without disturbing cart.
+- [x] Convert `public/cart.html` to Blade: `resources/views/cart/index.blade.php`.
+- [x] Wire up "Add to Cart" and "Buy Now" client hooks in `resources/views/catalog/details.blade.php`.
 - [ ] Wire up cart button on product cards in `resources/views/catalog/listing.blade.php`.
-- [ ] Update header cart badge across layouts to reflect live database count.
+- [x] Update header cart badge across layouts to reflect live database count.
 
 ### 2. Buyer Checkout & Order Placement
-- [ ] Create `CheckoutController` / `OrderController`:
-  - Checkout form: shipping address selection / creation, contact phone/email confirmation, buyer note.
+- [x] Create `CheckoutController`:
+  - Checkout form: delivery address selection, pre-filling saved addresses, buyer note.
   - Order creation transaction:
     - Validate variant stock against cart quantity.
-    - Reserve stock (`reserved_stock` increment).
+    - Decrement stock and audit in `stock_movements`.
     - Create parent `orders` record.
     - Snapshot and partition items into `order_items` with appropriate `seller_id`.
-    - Clear ordered items from `cart_items`.
-    - Log order placement in `stock_movements`.
-- [ ] Create Checkout view (`resources/views/trading/checkout.blade.php` using design from `public/payment.html`).
-- [ ] Order confirmation / success view (`resources/views/trading/order_success.blade.php`).
+    - Clear ordered items from `cart_items` / session.
+- [x] Create Checkout view: `resources/views/cart/checkout.blade.php` using design from `public/payment.html`.
+- [x] Order confirmation / success view: `resources/views/cart/success.blade.php`.
 
 ### 3. Buyer Order History & Tracking
 - [ ] Add buyer orders view (`resources/views/trading/orders.blade.php` and `resources/views/trading/order_details.blade.php` using design from `public/order-details.html`).

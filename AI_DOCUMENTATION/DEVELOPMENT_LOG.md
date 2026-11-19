@@ -85,3 +85,60 @@
 
 ### 4. Next Step
 - Present completion report to the user and await instructions for the next module/task (e.g., Buyer Shopping Cart or Checkout).
+
+---
+
+## Entry: 2026-11-18 — Implementation of Add to Cart, Buy Now, Cart Management & Checkout
+
+### 1. Context & Objectives
+- **Task:** Implement full e-commerce buying pipeline:
+  - Add to Cart with server-side validation and live header badge updates.
+  - Buy Now direct checkout flow without modifying or mixing with existing cart.
+  - Cart Management page (`/cart`) matching `public/cart.html`.
+  - Checkout Inquiry page (`/checkout`) matching `public/payment.html`.
+  - Dynamic wholesale tier price calculation and retail pricing rules.
+  - Complete backend order placement in `orders` and `order_items`.
+
+### 2. Actions Performed
+1. **Model Enhancements (`App\Models\User`):**
+   - Added `cartItems()` (`hasMany(CartItem)`) and `orders()` (`hasMany(Order, 'buyer_id')`) inverse relationships.
+2. **Cart Management Controller (`app/Http/Controllers/CartController.php`):**
+   - `index`: Renders cart with server-side unit prices, subtotal, savings discount, and grand total.
+   - `add`: Validates product, variant, stock, retail MOQ (1) and wholesale MOQ (`min_order_qty`). Updates existing items without duplicate lines. Syncs session and `cart_items` table.
+   - `update`: Handles quantity modifications via AJAX, re-validates wholesale MOQ and stock, recalculates applicable volume price tiers, updates line total and cart summary.
+   - `remove`: Deletes items by variant ID and updates totals.
+   - `count`: Returns active cart item count.
+   - `buyNow`: Direct purchase session isolation (`buy_now_item`) that redirects to checkout without touching regular cart.
+   - `calculateItemPrice`: Pure server-side pricing engine for retail & wholesale volume tiers.
+3. **Checkout Controller (`app/Http/Controllers/CheckoutController.php`):**
+   - `index`: Supports both regular cart checkout and isolated Buy Now checkout. Pre-fills authenticated user contact and saved addresses.
+   - `process`: Validates delivery address, creates unique `Order`, creates seller-partitioned `OrderItem` records, decrements stock with `StockMovement` audit logs, and clears purchased items.
+   - `success`: Confirmation view displaying order number, delivery destination, and ordered items summary.
+4. **Blade Views Created & Connected:**
+   - `resources/views/cart/index.blade.php`: Functional shopping cart preserving `public/cart.html` layout.
+   - `resources/views/cart/checkout.blade.php`: Checkout & inquiry form preserving `public/payment.html` layout.
+   - `resources/views/cart/success.blade.php`: Order confirmation view.
+   - `resources/views/catalog/details.blade.php`: Connected `cartBtn` and `buyBtn` with fetch requests, CSRF protection, and toast feedback.
+   - `resources/views/layouts/trading.blade.php`: Connected header cart link and dynamic cart badge.
+5. **Route Registrations (`routes/web.php`):**
+   - Registered `/cart`, `/cart/add`, `/cart/update`, `/cart/remove`, `/cart/count`, `/buy-now`, `/checkout`, and `/order/success/{order_no}`.
+
+### 3. Verification & Testing
+- Developed and ran comprehensive automated test suite (`scratch/test_cart_and_checkout.php`):
+  - Scenario 1: Retail product – Add to Cart -> PASS
+  - Scenario 2: Adding same product twice (accumulates qty) -> PASS
+  - Scenario 3: Wholesale product – Add to Cart with MOQ validation -> PASS
+  - Scenario 4: Wholesale pricing tier changes dynamically on quantity update -> PASS
+  - Scenario 5: Cart page rendering & calculation -> PASS
+  - Scenario 6: Removing a cart item -> PASS
+  - Scenario 7: Buy Now direct purchase without modifying cart -> PASS
+  - Scenario 8: Checkout page with Buy Now item -> PASS
+  - Scenario 9: Process Order for Buy Now (order created, regular cart preserved) -> PASS
+  - Scenario 10: Checkout & process from regular cart (order created, cart cleared) -> PASS
+  - Scenario 11: Empty cart state display -> PASS
+  - **Result: 28/28 assertions passed (0 failed).**
+- Verified product details routes continue to render with 0 errors (`stripped-heel`, `demo-modern-sofa`, `demo-cotton-t-shirt`).
+- Verified zero modifications to the Networking module.
+
+### 4. Next Step
+- Present completion report to the user and await instructions for the next task.

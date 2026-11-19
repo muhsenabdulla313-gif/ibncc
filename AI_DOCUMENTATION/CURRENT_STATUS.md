@@ -15,22 +15,21 @@
 | **Networking Module** | Completed | Fully functional, untouched, and set to reference-only. |
 | **Trading Catalog Backend** | Operational | Multi-axis variants, tiered wholesale pricing, GD image resizing working. |
 | **Seller Hub** | Operational | Products CRUD, variant generator, stock movement audit working. |
-| **Buyer Catalog Frontend** | ~95% Complete | Listing & Details blades functioning. Details page 100% completed & verified across all scenarios. |
-| **Buyer Cart & Checkout** | Not Implemented | Database tables exist; UI hooks (`window.pdSelection`) ready in Details. Backend controllers absent. |
+| **Buyer Catalog Frontend** | 100% Complete | Listing & Details blades functioning. Details page fully connected with Add to Cart and Buy Now. |
+| **Buyer Cart & Checkout** | 100% Complete | Functional CartController, CheckoutController, cart.index, cart.checkout, and order.success blades. |
 | **Admin Catalog** | Needs Layout Fix (Bug BUG-001) | Needs `@extends('layouts.admin')` fix. |
 
 ---
 
 ## 2. Work in Progress Snapshot
-- Completed and verified: `resources/views/catalog/details.blade.php`.
-- The product details page has been fully refactored to dynamic Blade preserving original styling from `ch-product-details.html`.
-- Tested across 8 comprehensive scenarios (single/multi-image, color gallery switching, multi-axis variants, wholesale tiered pricing, out-of-stock clamps, etc.) with 100% pass rate.
-- Cleaned up duplicate route definitions in `routes/web.php`.
-- Optimized `ProductListingController` eager-loading for nested category ancestors and typed attribute values.
+- Completed and verified: Add to Cart, Buy Now, Cart Management (`CartController`), and Checkout / Order Placement (`CheckoutController`).
+- Blade views created: `resources/views/cart/index.blade.php`, `resources/views/cart/checkout.blade.php`, and `resources/views/cart/success.blade.php`, preserving design from `public/cart.html` and `public/payment.html`.
+- Details page (`catalog/details.blade.php`) now connects directly with Add to Cart and Buy Now endpoints.
+- All 11 automated test scenarios for Cart and Checkout passed (28/28 test assertions).
 
 ---
 
 ## 3. Immediate Action Items (Pending Approval)
 1. Fix `BUG-001` in `resources/views/admin/catalog/index.blade.php`.
-2. Add inverse Trading relationships to `App\Models\User`.
-3. Implement `CartController` (add to cart, view, update, delete, count) and connect `details.blade.php` to live cart endpoints.
+2. Implement Buyer Order History / My Orders view (`orders.blade.php`).
+3. Connect Wishlist functionality (`WishlistController`).
