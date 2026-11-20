@@ -93,13 +93,16 @@
       label: 'category', cols: [
         ['Name', (r) => `<span class="cat-indent" style="padding-left:${r.depth * 22}px">${r.depth ? '↳ ' : ''}<strong>${esc(r.name)}</strong></span>`],
         ['Slug', (r) => esc(r.slug)], ['Parent', (r) => esc(r.parent || '—')], ['Products', (r) => r.products_count],
+        ['Trading', (r) => r.is_trading ? '<span class="badge bg-warning text-dark"><i class="fa fa-handshake"></i> Trading</span>' : '<span class="text-muted">—</span>'],
         ['Attributes', (r) => r.attrs_count], ['Order', (r) => r.sort_order], ['Status', (r) => badge(r.is_active)]],
       fields: () => [
         { n: 'name', l: 'Name', t: 'text', req: 1, w: 6 },
         { n: 'parent_id', l: 'Parent category', t: 'select', w: 6, o: () => [['', '— top level —'], ...L.categories.filter((c) => c.depth < 2 && c.id !== editId).map((c) => [c.id, '— '.repeat(c.depth) + c.name])] },
         { n: 'slug', l: 'Slug', t: 'text', w: 6, help: 'Leave blank to generate from the name' },
-        { n: 'sort_order', l: 'Sort order', t: 'number', w: 3, d: 0 },
-        { n: 'is_active', l: 'Active', t: 'switch', w: 3, d: 1 },
+        { n: 'icon', l: 'FontAwesome Icon', t: 'text', w: 6, placeholder: 'e.g. fa-wheat-awn' },
+        { n: 'sort_order', l: 'Sort order', t: 'number', w: 4, d: 0 },
+        { n: 'is_active', l: 'Active', t: 'switch', w: 4, d: 1 },
+        { n: 'is_trading', l: 'Trading Category (Wholesale)', t: 'switch', w: 4, d: 0 },
         { n: 'description', l: 'Description', t: 'textarea', w: 12 },
         { n: 'image', l: 'Image', t: 'file', w: 12, url: 'image_url' },
         { n: 'meta_title', l: 'Meta title', t: 'text', w: 6 },

@@ -20,6 +20,9 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\Admin\EventController as AdminEventController;
 use App\Http\Controllers\ProductListingController;
 use App\Http\Controllers\Admin\CatalogController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Seller\SellerCatalogController;
 use App\Http\Controllers\Seller\SellerController;
 use App\Http\Controllers\Seller\SellerOrderController;
@@ -90,8 +93,19 @@ Route::prefix('admin')->name('admin.')->group(function () {
     });
 
     Route::middleware(['auth:admin', 'role:admin'])->group(function () {
-        Route::get('/', fn() => view('admin.dashboard'))->name('dashboard');
+        Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::post('/logout', [AdminLoginController::class, 'logout'])->name('logout');
+
+        /* ---------------- Trading & Commerce ---------------- */
+        Route::resource('products', AdminProductController::class);
+        Route::post('products/{product}/toggle-featured', [AdminProductController::class, 'toggleFeatured'])->name('products.toggle-featured');
+        Route::post('products/{product}/toggle-assured', [AdminProductController::class, 'toggleAssured'])->name('products.toggle-assured');
+        Route::post('products/{product}/status', [AdminProductController::class, 'updateStatus'])->name('products.status');
+
+        Route::get('orders', [AdminOrderController::class, 'index'])->name('orders.index');
+        Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
+        Route::post('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
+
         Route::delete('events/images/{image}', [AdminEventController::class, 'destroyImage'])->name('events.images.destroy');
         Route::resource('events', AdminEventController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::resource('banners', BannerController::class)->only(['index', 'store', 'update', 'destroy']);

@@ -54,83 +54,93 @@
             <div class="sidebar-wrapper scrollbar scrollbar-inner">
                 <div class="sidebar-content">
                     <ul class="nav nav-secondary">
-
-
-
-
-                        <li class="nav-item">
-                            <a data-bs-toggle="collapse" href="#base">
-                                <i class="fas fa-layer-group"></i>
-                                <p>Base</p>
-                                <span class="caret"></span>
-                            </a>
-                            <div class="collapse" id="base">
-                                <ul class="nav nav-collapse">
-                                    <li>
-                                        <a href="components/typography.html">
-                                            <span class="sub-item">Typography</span>
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </li>
-
-                        {{-- Header Notice --}}
-                        <li class="nav-item {{ request()->routeIs('admin.header-notice.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.header-notice.index') }}">
-                                <i class="fas fa-bullhorn"></i>
-                                <p>Header Notice</p>
+                        <li class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                            <a href="{{ route('admin.dashboard') }}">
+                                <i class="fas fa-home"></i>
+                                <p>Dashboard</p>
                             </a>
                         </li>
+
+                        {{-- Trading & Commerce Section --}}
+                        <li class="nav-section">
+                            <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                            <h4 class="text-section">Trading &amp; Commerce</h4>
+                        </li>
+
+                        <li class="nav-item {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.products.index') }}">
+                                <i class="fas fa-box-open"></i>
+                                <p>Products</p>
+                            </a>
+                        </li>
+
+                        <li class="nav-item {{ request()->routeIs('admin.orders.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.orders.index') }}">
+                                <i class="fas fa-shopping-cart"></i>
+                                <p>Orders</p>
+                                @php
+                                    $pendingCount = \App\Models\Order::where('status', 'placed')->count();
+                                @endphp
+                                @if($pendingCount > 0)
+                                    <span class="badge badge-success">{{ $pendingCount }}</span>
+                                @endif
+                            </a>
+                        </li>
+
+                        <li class="nav-item {{ request()->routeIs('admin.catalog.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.catalog.index') }}">
+                                <i class="fas fa-sitemap"></i>
+                                <p>Catalog &amp; Categories</p>
+                            </a>
+                        </li>
+
                         <li class="nav-item {{ request()->routeIs('admin.banners.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.banners.index') }}">
                                 <i class="fas fa-images"></i>
                                 <p>Hero Banners</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('admin.admin-messages.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.admin-messages.index') }}">
-                                <i class="fas fa-envelope"></i>
-                                <p>Admin Messages</p>
+
+                        {{-- General / Administration --}}
+                        <li class="nav-section">
+                            <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                            <h4 class="text-section">Administration</h4>
+                        </li>
+
+                        <li class="nav-item {{ request()->routeIs('admin.header-notice.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.header-notice.index') }}">
+                                <i class="fas fa-bullhorn"></i>
+                                <p>Header Notice</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('admin.catalog.*') ? 'active' : '' }}">
-    <a href="{{ route('admin.catalog.index') }}">
-        <i class="fas fa-sitemap"></i>
-        <p>Product Catalog</p>
-    </a>
-</li>
-<li class="nav-item {{ request()->routeIs('admin.catalog.*') ? 'active submenu' : '' }}">
-    <a data-bs-toggle="collapse" href="#catalogMenu" aria-expanded="{{ request()->routeIs('admin.catalog.*') ? 'true' : 'false' }}">
-        <i class="fas fa-boxes-stacked"></i>
-        <p>Catalog</p>
-        <span class="caret"></span>
-    </a>
-    <div class="collapse {{ request()->routeIs('admin.catalog.*') ? 'show' : '' }}" id="catalogMenu">
-        <ul class="nav nav-collapse">
-            <li><a href="{{ route('admin.catalog.index') }}"><span class="sub-item">Categories &amp; Attributes</span></a></li>
-        </ul>
-    </div>
-</li>
-                        
 
-                        <li class="nav-item {{ request()->routeIs('admin.users.index') ? 'active' : '' }}">
+                        <li class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.users.index') }}">
-                                <i class="fas fa-envelope"></i>
+                                <i class="fas fa-users"></i>
                                 <p>Users</p>
                             </a>
                         </li>
 
+                        <li class="nav-item {{ request()->routeIs('admin.church.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.church.index') }}">
+                                <i class="fas fa-church"></i>
+                                <p>Church Directory</p>
+                            </a>
+                        </li>
 
-                        <li class="nav-item {{ request()->routeIs('admin.events.index') ? 'active' : '' }}">
+                        <li class="nav-item {{ request()->routeIs('admin.events.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.events.index') }}">
                                 <i class="fas fa-calendar-alt"></i>
                                 <p>Events</p>
                             </a>
                         </li>
 
-
-
+                        <li class="nav-item {{ request()->routeIs('admin.admin-messages.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.admin-messages.index') }}">
+                                <i class="fas fa-envelope"></i>
+                                <p>Admin Messages</p>
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </div>

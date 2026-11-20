@@ -25,6 +25,11 @@ class BannerController extends Controller
             'image' => ($imageRequired ? 'required' : 'nullable') . '|image|mimes:jpg,jpeg,png,webp|max:8192',
             'link' => ['nullable', 'string', 'max:255', 'regex:/^(https?:\/\/|\/)/i'],
             'alt' => 'nullable|string|max:150',
+            'eyebrow' => 'nullable|string|max:150',
+            'title' => 'nullable|string|max:200',
+            'subtitle' => 'nullable|string|max:300',
+            'cta_text' => 'nullable|string|max:100',
+            'text_position' => 'nullable|in:left,right',
             'sort_order' => 'nullable|integer|min:0',
         ];
     }
@@ -35,6 +40,11 @@ class BannerController extends Controller
             'link' => $request->input('link'),
             'open_new_tab' => $request->boolean('open_new_tab'),
             'alt' => $request->input('alt'),
+            'eyebrow' => $request->input('eyebrow'),
+            'title' => $request->input('title'),
+            'subtitle' => $request->input('subtitle'),
+            'cta_text' => $request->input('cta_text'),
+            'text_position' => $request->input('text_position', 'right'),
             'sort_order' => $request->input('sort_order', 0),
             'is_active' => $request->boolean('is_active'),
         ];

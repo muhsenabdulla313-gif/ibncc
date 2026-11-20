@@ -39,7 +39,11 @@ private function getCategories()
         
         $categories = Category::whereNull('parent_id')
             ->where('is_active', true)
-            ->with('children.children')
+            ->with(['children' => function ($query) {
+                $query->where('is_active', true)
+                    ->with(['children' => fn($q) => $q->where('is_active', true)->orderBy('sort_order')])
+                    ->orderBy('sort_order');
+            }])
             ->orderBy('sort_order')
             ->get();
 
@@ -251,7 +255,7 @@ $filters = $filtersQuery->get();
 
     private function selectedCategory(Request $request): ?Category
     {
-        foreach (['item', 'group', 'cat'] as $parameter) {
+        foreach (['item', 'group', 'cat', 'category'] as $parameter) {
             $value = $request->input($parameter);
 
             if (!$value) {

@@ -8,7 +8,7 @@ class Category extends Model
 {
     protected $fillable = [
         'parent_id', 'name', 'slug', 'path', 'depth', 'description', 'image',
-        'meta_title', 'meta_description', 'sort_order', 'is_active',
+        'meta_title', 'meta_description', 'sort_order', 'is_active', 'is_trading', 'icon',
     ];
 
     protected function casts(): array
@@ -17,6 +17,7 @@ class Category extends Model
             'depth'      => 'integer',
             'sort_order' => 'integer',
             'is_active'  => 'boolean',
+            'is_trading' => 'boolean',
         ];
     }
 
@@ -53,5 +54,10 @@ class Category extends Model
     public function scopeRoots($q)
     {
         return $q->whereNull('parent_id');
+    }
+
+    public function scopeTrading($q)
+    {
+        return $q->where('is_trading', true);
     }
 }

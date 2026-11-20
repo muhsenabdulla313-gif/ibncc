@@ -69,7 +69,8 @@ class CatalogController extends Controller
         $walk = function ($pid, $depth) use (&$walk, $all, $out) {
             foreach ($all->get($pid, collect()) as $c) {
                 $out->push(['id' => $c->id, 'name' => $c->name, 'slug' => $c->slug, 'depth' => $depth,
-                            'parent_id' => $c->parent_id, 'is_active' => $c->is_active, 'sort_order' => $c->sort_order]);
+                            'parent_id' => $c->parent_id, 'is_active' => $c->is_active, 'sort_order' => $c->sort_order,
+                            'is_trading' => (bool)$c->is_trading, 'icon' => $c->icon]);
                 $walk($c->id, $depth + 1);
             }
         };
@@ -231,6 +232,8 @@ class CatalogController extends Controller
             'meta_description' => 'nullable|string|max:500',
             'sort_order'       => 'nullable|integer|min:0',
             'is_active'        => 'nullable|boolean',
+            'is_trading'       => 'nullable|boolean',
+            'icon'             => 'nullable|string|max:100',
             'image'            => 'nullable|image|max:3072',
             'attrs_json'       => 'nullable|string',
         ]);
@@ -255,6 +258,7 @@ class CatalogController extends Controller
             'description' => $d['description'] ?? null, 'meta_title' => $d['meta_title'] ?? null,
             'meta_description' => $d['meta_description'] ?? null,
             'sort_order' => $d['sort_order'] ?? 0, 'is_active' => $r->boolean('is_active', true),
+            'is_trading' => $r->boolean('is_trading'), 'icon' => $r->input('icon') ?: null,
             'image' => $this->pickImage($r, 'image', $cat?->image, 'categories', 900),
         ];
         $cat ? $cat->update($fields) : $cat = Category::create($fields);

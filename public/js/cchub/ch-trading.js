@@ -99,9 +99,10 @@
       e.preventDefault();
       try {
         const url = new URL(galleryOrCategory.href, window.location.href);
-        window.location.href = `trading_product_list.html${url.search}${url.hash}`;
+        const tradingUrl = url.pathname.includes('/trading/products') ? url.pathname : '/trading/products';
+        window.location.href = `${tradingUrl}${url.search}${url.hash}`;
       } catch {
-        window.location.href = "trading_product_list.html";
+        window.location.href = "/trading/products";
       }
       return;
     }
@@ -110,14 +111,9 @@
     if (!headerLink) return;
 
     const label = (headerLink.getAttribute("aria-label") || "").toLowerCase();
-    if (label.includes("wishlist")) {
-      e.preventDefault();
-      window.location.href = "trading_wishlist.html";
-      return;
-    }
     if (label.includes("cart") || headerLink.classList.contains("cart-btn")) {
       e.preventDefault();
-      window.location.href = "trading_cart.html";
+      window.location.href = "/cart";
     }
   });
 })();
