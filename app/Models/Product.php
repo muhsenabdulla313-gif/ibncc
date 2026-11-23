@@ -83,6 +83,19 @@ class Product extends Model
         return 'slug';
     }
 
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $column = $field ?? $this->getRouteKeyName();
+
+        $query = $this->where($column, $value);
+
+        if (is_numeric($value)) {
+            $query->orWhere('id', $value);
+        }
+
+        return $query->first();
+    }
+
     /* ---------- relations ---------- */
 
     public function seller()
@@ -131,6 +144,11 @@ class Product extends Model
     public function priceTiers()
     {
         return $this->hasMany(ProductPriceTier::class)->orderBy('min_qty');
+    }
+
+    public function wholesalePriceTiers()
+    {
+        return $this->hasMany(ProductPriceTier::class)->where('price_type', 'wholesale')->orderBy('min_qty');
     }
 
     public function images()

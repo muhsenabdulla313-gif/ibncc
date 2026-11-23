@@ -58,6 +58,23 @@
             <p class="seller-banner-copy">List products for marketplace shoppers or wholesale trading buyers. Set prices, stock, and fulfill orders from one calm workspace.</p>
             <a href="#seller-workspace" class="seller-banner-cta">Start listing <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
           </div>
+          <div class="seller-banner-stats" aria-label="Seller highlights">
+            <div class="seller-stat">
+              <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
+              <strong>{{ $stats['total_products'] }}</strong>
+              <span>Total Products</span>
+            </div>
+            <div class="seller-stat">
+              <i class="fa-solid fa-warehouse" aria-hidden="true"></i>
+              <strong>{{ number_format($stats['total_stock']) }}</strong>
+              <span>Units in Stock</span>
+            </div>
+            <div class="seller-stat">
+              <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+              <strong>{{ $stats['total_orders'] }}</strong>
+              <span>Orders Placed</span>
+            </div>
+          </div>
         </div>
       </section>
 

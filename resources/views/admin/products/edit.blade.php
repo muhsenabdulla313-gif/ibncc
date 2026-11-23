@@ -24,7 +24,7 @@
         </div>
     @endif
 
-    @if($errors->any())
+    @if(isset($errors) && $errors->any())
         <div class="alert alert-danger alert-dismissible fade show">
             <ul class="mb-0">
                 @foreach($errors->all() as $error)
@@ -139,6 +139,152 @@
                         </div>
                     </div>
                 </div>
+
+                {{-- Wholesale / Trading Specifications Card --}}
+                <div class="card card-round mb-3 border-warning">
+                    <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0 text-warning-emphasis"><i class="fas fa-boxes me-2"></i>Wholesale &amp; Bulk Trading Specifications</h5>
+                            <small class="text-muted">Required when sale type is Wholesale or Both. Controls ordering limits and packaging.</small>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Minimum Order Quantity (MOQ)</label>
+                                <div class="input-group">
+                                    <input type="number" min="1" step="1" name="min_order_qty" class="form-control" value="{{ old('min_order_qty', $product->min_order_qty) }}" placeholder="e.g. 10">
+                                    <span class="input-group-text text-muted">units</span>
+                                </div>
+                                <small class="text-muted">Minimum units a buyer must order.</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Maximum Order Quantity</label>
+                                <div class="input-group">
+                                    <input type="number" min="1" step="1" name="max_order_qty" class="form-control" value="{{ old('max_order_qty', $product->max_order_qty) }}" placeholder="e.g. 1000">
+                                    <span class="input-group-text text-muted">units</span>
+                                </div>
+                                <small class="text-muted">Leave empty for no upper limit.</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Pack / Case Quantity</label>
+                                <div class="input-group">
+                                    <input type="number" min="1" step="1" name="pack_qty" class="form-control" value="{{ old('pack_qty', $product->pack_qty) }}" placeholder="e.g. 1">
+                                    <span class="input-group-text text-muted">per pack</span>
+                                </div>
+                                <small class="text-muted">Items per master carton / pack.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Wholesale Volume Price Tiers Card --}}
+                <div class="card card-round mb-3 border-primary">
+                    <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0 text-primary"><i class="fas fa-layer-group me-2"></i>Wholesale Volume Price Tiers</h5>
+                            <small class="text-muted">Discounted unit rates unlocked when purchasing bulk quantities. Saved in <code>product_price_tiers</code>.</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary btn-round" id="btnAddTier">
+                            <i class="fa fa-plus me-1"></i> Add Tier
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle mb-0" id="tiersTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 28%;">Min Qty <span class="text-danger">*</span></th>
+                                        <th style="width: 28%;">Max Qty <small class="text-muted">(Leave empty for &infin;)</small></th>
+                                        <th style="width: 34%;">Price Per Unit (₹) <span class="text-danger">*</span></th>
+                                        <th style="width: 10%;" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @php
+                                        $oldTiers = old('tiers');
+                                        $dbTiers = $product->priceTiers ? $product->priceTiers->where('price_type', 'wholesale')->sortBy('min_qty')->values() : collect();
+                                    @endphp
+
+                                    @if(is_array($oldTiers) && count($oldTiers) > 0)
+                                        @foreach($oldTiers as $idx => $t)
+                                            <tr class="tier-row">
+                                                <td>
+                                                    <input type="hidden" name="tiers[{{ $idx }}][id]" value="{{ $t['id'] ?? '' }}">
+                                                    <input type="number" min="1" step="1" name="tiers[{{ $idx }}][min_qty]" class="form-control" value="{{ $t['min_qty'] ?? '' }}" placeholder="e.g. 10">
+                                                </td>
+                                                <td>
+                                                    <input type="number" min="1" step="1" name="tiers[{{ $idx }}][max_qty]" class="form-control" value="{{ $t['max_qty'] ?? '' }}" placeholder="e.g. 49">
+                                                </td>
+                                                <td>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">₹</span>
+                                                        <input type="number" min="0" step="0.01" name="tiers[{{ $idx }}][price]" class="form-control" value="{{ $t['price'] ?? '' }}" placeholder="e.g. 3850.00">
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-danger btn-remove-tier" title="Remove tier">
+                                                        <i class="fa fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    @elseif($dbTiers->count() > 0)
+                                        @foreach($dbTiers as $idx => $tier)
+                                            <tr class="tier-row">
+                                                <td>
+                                                    <input type="hidden" name="tiers[{{ $idx }}][id]" value="{{ $tier->id }}">
+                                                    <input type="number" min="1" step="1" name="tiers[{{ $idx }}][min_qty]" class="form-control" value="{{ $tier->min_qty }}" placeholder="e.g. 10">
+                                                </td>
+                                                <td>
+                                                    <input type="number" min="1" step="1" name="tiers[{{ $idx }}][max_qty]" class="form-control" value="{{ $tier->max_qty }}" placeholder="e.g. 49">
+                                                </td>
+                                                <td>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">₹</span>
+                                                        <input type="number" min="0" step="0.01" name="tiers[{{ $idx }}][price]" class="form-control" value="{{ $tier->price }}" placeholder="e.g. 3850.00">
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-sm btn-danger btn-remove-tier" title="Remove tier">
+                                                        <i class="fa fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    @else
+                                        <tr class="tier-row">
+                                            <td>
+                                                <input type="hidden" name="tiers[0][id]" value="">
+                                                <input type="number" min="1" step="1" name="tiers[0][min_qty]" class="form-control" placeholder="e.g. 10">
+                                            </td>
+                                            <td>
+                                                <input type="number" min="1" step="1" name="tiers[0][max_qty]" class="form-control" placeholder="e.g. 49">
+                                            </td>
+                                            <td>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">₹</span>
+                                                    <input type="number" min="0" step="0.01" name="tiers[0][price]" class="form-control" placeholder="e.g. 3850.00">
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-danger btn-remove-tier" title="Remove tier">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endif
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <small class="text-muted"><i class="fa fa-info-circle me-1"></i> Tiers should have non-overlapping ranges (e.g. 10–49, 50–99, 100+). Leave Max Qty blank for open-ended top tier.</small>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddTierBottom">
+                                <i class="fa fa-plus me-1"></i> Add Another Tier
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {{-- Right column: Organization, Media & Status --}}
@@ -231,3 +377,58 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    let tierIndex = {{ (is_array(old('tiers')) ? count(old('tiers')) : (isset($dbTiers) ? $dbTiers->count() : 1)) + 10 }};
+
+    function addTierRow() {
+        const tbody = document.querySelector('#tiersTable tbody');
+        if (!tbody) return;
+        const tr = document.createElement('tr');
+        tr.className = 'tier-row';
+        tr.innerHTML = `
+            <td>
+                <input type="hidden" name="tiers[${tierIndex}][id]" value="">
+                <input type="number" min="1" step="1" name="tiers[${tierIndex}][min_qty]" class="form-control" placeholder="e.g. 10">
+            </td>
+            <td>
+                <input type="number" min="1" step="1" name="tiers[${tierIndex}][max_qty]" class="form-control" placeholder="e.g. 49">
+            </td>
+            <td>
+                <div class="input-group">
+                    <span class="input-group-text">₹</span>
+                    <input type="number" min="0" step="0.01" name="tiers[${tierIndex}][price]" class="form-control" placeholder="e.g. 3850.00">
+                </div>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-danger btn-remove-tier" title="Remove tier">
+                    <i class="fa fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        tierIndex++;
+    }
+
+    const btnTop = document.getElementById('btnAddTier');
+    const btnBottom = document.getElementById('btnAddTierBottom');
+    if (btnTop) btnTop.addEventListener('click', addTierRow);
+    if (btnBottom) btnBottom.addEventListener('click', addTierRow);
+
+    document.getElementById('tiersTable')?.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-remove-tier');
+        if (btn) {
+            const rows = document.querySelectorAll('#tiersTable tbody .tier-row');
+            if (rows.length > 1) {
+                btn.closest('tr').remove();
+            } else {
+                const tr = btn.closest('tr');
+                tr.querySelectorAll('input').forEach(input => input.value = '');
+            }
+        }
+    });
+});
+</script>
+@endpush

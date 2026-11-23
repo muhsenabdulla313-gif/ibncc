@@ -31,12 +31,19 @@ class EnsureRole
     {
         $allowed = array_map('trim', explode(',', $roles));
 
-        // admin routes use the admin guard, everything else uses web
-        $guard = in_array('admin', $allowed, true) ? 'admin' : 'web';
+        // If only 'admin' is explicitly requested, check admin guard; otherwise check web, then admin
+        $guard = in_array('admin', $allowed, true) && count($allowed) === 1 ? 'admin' : 'web';
 
-        $user = Auth::guard($guard)->user();
+        $user = Auth::guard($guard)->user() ?? Auth::guard('admin')->user() ?? Auth::user();
 
-        if (! $user || ! in_array($user->role?->name, $allowed, true)) {
+        if (! $user) {
+            if ($request->expectsJson() || $request->isXmlHttpRequest()) {
+                return response()->json(['message' => 'Unauthenticated.'], 401);
+            }
+            return redirect()->guest(route('login'))->with('error', 'Please log in to continue.');
+        }
+
+        if (! in_array($user->role?->name, $allowed, true)) {
             abort(403);
         }
 

@@ -108,8 +108,11 @@ class SellerProductService
                 'stock' => (float) $v->stock, 'reserved' => (float) $v->reserved_stock,
                 'low_stock_alert' => $v->low_stock_alert !== null ? (float) $v->low_stock_alert : null,
             ]),
-            'tiers' => $p->priceTiers->where('price_type', 'wholesale')->whereNull('variant_id')->values()->map(fn ($t) => [
-                'min_qty' => (float) $t->min_qty, 'max_qty' => $t->max_qty !== null ? (float) $t->max_qty : null, 'price' => (float) $t->price,
+            'tiers' => $p->priceTiers->where('price_type', 'wholesale')->sortBy('min_qty')->values()->map(fn ($t) => [
+                'id' => $t->id,
+                'min_qty' => (float) $t->min_qty,
+                'max_qty' => $t->max_qty !== null ? (float) $t->max_qty : null,
+                'price' => (float) $t->price,
             ]),
             'movements' => $movements,
         ];

@@ -54,13 +54,30 @@ class SellerProductController extends Controller
             ->with(['category:id,name', 'unit:id,name', 'variants', 'images', 'priceTiers'])
             ->latest('updated_at');
 
-        $request->query('mode') === 'trading' ? $q->trading() : $q->retail();
+        if ($request->query('mode') === 'trading') {
+            $q->trading();
+        } else {
+            $q->retail();
+        }
+
+        if ($request->filled('q')) {
+            $term = trim($request->input('q'));
+            $q->where(function ($sub) use ($term) {
+                $sub->where('title', 'like', "%{$term}%")
+                    ->orWhere('model_no', 'like', "%{$term}%")
+                    ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$term}%"));
+            });
+        }
+
+        if ($request->filled('status')) {
+            $q->where('status', $request->input('status'));
+        }
 
         return $q->get()->map(function (Product $p) use ($request) {
             $wholesale = $request->query('mode') === 'trading';
             $price = $wholesale
-                ? $p->priceTiers->where('price_type', 'wholesale')->min('price')
-                : $p->variants->where('is_active', true)->min('price');
+                ? ($p->priceTiers->where('price_type', 'wholesale')->min('price') ?? $p->variants->where('is_active', true)->min('price'))
+                : ($p->variants->where('is_active', true)->min('price') ?? $p->priceTiers->where('price_type', 'wholesale')->min('price'));
             $img = $p->images->firstWhere('is_primary', true) ?? $p->images->first();
 
             return [
@@ -68,6 +85,9 @@ class SellerProductController extends Controller
                 'category' => $p->category?->name, 'unit' => $p->unit?->name, 'sale_type' => $p->sale_type,
                 'status' => $p->status, 'image' => $img?->url, 'price' => $price !== null ? (float) $price : null,
                 'stock' => $p->variants->sum(fn ($v) => (float) $v->stock), 'variants' => $p->variants->count(),
+                'min_order_qty' => (float) ($p->min_order_qty ?: 1),
+                'created_at' => $p->created_at?->format('d M Y'),
+                'slug' => $p->slug,
             ];
         })->values();
     }
@@ -102,6 +122,9 @@ class SellerProductController extends Controller
             'sku'               => 'nullable|string|max:100',
             'short_description' => 'nullable|string|max:500',
             'description'       => 'nullable|string|max:20000',
+            'min_order_qty'     => 'nullable|numeric|min:1',
+            'max_order_qty'     => 'nullable|numeric|min:1',
+            'pack_qty'          => 'nullable|numeric|min:1',
             'action'            => 'nullable|in:draft,submit',
             'images'            => 'nullable|array|max:20',
             'images.*'          => 'image|max:4096',
@@ -139,12 +162,14 @@ class SellerProductController extends Controller
                 'category_id' => $cat->id, 'brand_id' => $brandId, 'title' => trim($data['title']),
                 'sale_type' => $data['sale_type'], 'model_no' => $data['model_no'] ?? null,
                 'short_description' => $data['short_description'] ?? null, 'description' => $data['description'] ?? null,
+                'min_order_qty' => !empty($data['min_order_qty']) ? (float) $data['min_order_qty'] : ($p?->min_order_qty ?: 1),
+                'max_order_qty' => !empty($data['max_order_qty']) ? (float) $data['max_order_qty'] : null,
+                'pack_qty' => !empty($data['pack_qty']) ? (float) $data['pack_qty'] : ($p?->pack_qty ?: 1),
             ];
 
             if (!$p) {
                 $p = Product::create($fields + [
                     'user_id' => auth()->id(), 'unit_id' => $unitId, 'slug' => $this->uniqueSlug($data['title']),
-                    'min_order_qty' => 1,
                 ] + (($submit && !config('app.seller_auto_approve', true)) ? $this->submitFields() : ['status' => 'draft']));
                 $p->variants()->create([
                     'sku' => $this->uniqueSku($data['sku'] ?? null), 'is_default' => true, 'is_active' => true,
@@ -211,8 +236,20 @@ class SellerProductController extends Controller
 
     public function destroy(string $uuid)
     {
-        $this->mine($uuid)->delete();   // soft delete: past orders keep their snapshot
-        return response()->json(['message' => 'Product deleted.']);
+        $p = $this->mine($uuid);
+
+        // Protect products that have existing order history
+        $hasOrders = \App\Models\OrderItem::where('product_id', $p->id)->exists();
+        if ($hasOrders) {
+            $p->update(['status' => 'inactive']);
+            return response()->json([
+                'message' => 'Product has existing order history and was deactivated instead of deleted.',
+                'status'  => 'inactive',
+            ]);
+        }
+
+        $p->delete();   // soft delete: past orders keep their snapshot
+        return response()->json(['message' => 'Product deleted successfully.']);
     }
 
     /* ================= status workflow ================= */
@@ -455,24 +492,35 @@ class SellerProductController extends Controller
         $p = $this->mine($uuid);
         $in = $request->validate([
             'min_order_qty' => 'required|numeric|min:1',
+            'max_order_qty' => 'nullable|numeric|min:1',
             'bulk_price'    => 'nullable|numeric|min:0.0001',
             'offer_text'    => 'nullable|string|max:255',
         ]);
         $this->assertQty($p, (float) $in['min_order_qty'], 'min_order_qty');
 
-        DB::transaction(function () use ($p, $in) {
+        $defaultVariant = $p->variants()->where('is_default', true)->first() ?? $p->variants()->first();
+        $variantId = $defaultVariant?->id;
+
+        DB::transaction(function () use ($p, $in, $variantId) {
             $moq = (float) $in['min_order_qty'];
+            $maxQty = !empty($in['max_order_qty']) ? (float) $in['max_order_qty'] : null;
+
             $p->update([
-                'min_order_qty' => $moq, 'offer_text' => $in['offer_text'] ?? null,
-                'sale_type' => $p->sale_type === 'retail' ? 'both' : $p->sale_type,
+                'min_order_qty' => $moq,
+                'max_order_qty' => $maxQty,
+                'offer_text'    => $in['offer_text'] ?? null,
+                'sale_type'     => $p->sale_type === 'retail' ? 'both' : $p->sale_type,
             ]);
 
             if (!empty($in['bulk_price'])) {
-                $p->priceTiers()->where('price_type', 'wholesale')->whereNull('variant_id')->where('min_qty', '<', $moq)->delete();
-                $p->priceTiers()->updateOrCreate(
-                    ['price_type' => 'wholesale', 'variant_id' => null, 'min_qty' => $moq],
-                    ['price' => $in['bulk_price']]
-                );
+                $p->priceTiers()->where('price_type', 'wholesale')->delete();
+                $p->priceTiers()->create([
+                    'price_type' => 'wholesale',
+                    'variant_id' => $variantId,
+                    'min_qty'    => $moq,
+                    'max_qty'    => $maxQty,
+                    'price'      => $in['bulk_price'],
+                ]);
             }
         });
 
@@ -486,7 +534,7 @@ class SellerProductController extends Controller
 
         DB::transaction(function () use ($p) {
             $p->priceTiers()->where('price_type', 'wholesale')->delete();
-            $p->update(['sale_type' => 'retail', 'min_order_qty' => 1, 'offer_text' => null]);
+            $p->update(['sale_type' => 'retail', 'min_order_qty' => 1, 'max_order_qty' => null, 'offer_text' => null]);
         });
         return $this->ok($p, 'Bulk selling turned off.');
     }
@@ -520,10 +568,13 @@ class SellerProductController extends Controller
         }
         $this->assertQty($p, $tiers->first()['min_qty'], 'tiers');
 
-        DB::transaction(function () use ($p, $in, $tiers) {
-            $p->priceTiers()->where('price_type', 'wholesale')->whereNull('variant_id')->delete();
+        $defaultVariant = $p->variants()->where('is_default', true)->first() ?? $p->variants()->first();
+        $variantId = $defaultVariant?->id;
+
+        DB::transaction(function () use ($p, $in, $tiers, $variantId) {
+            $p->priceTiers()->where('price_type', 'wholesale')->delete();
             foreach ($tiers as $t) {
-                $p->priceTiers()->create($t + ['price_type' => 'wholesale', 'variant_id' => null]);
+                $p->priceTiers()->create($t + ['price_type' => 'wholesale', 'variant_id' => $variantId]);
             }
             $p->update([
                 'unit_id' => $in['unit_id'],

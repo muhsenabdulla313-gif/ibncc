@@ -195,9 +195,12 @@
                                     </button>
                                 </form>
                             </td>
-                            <td class="text-end">
-                                <a href="{{ route('products.show', $p->slug) }}" target="_blank" class="btn btn-sm btn-icon btn-light" title="View on Frontend">
+                            <td class="text-end text-nowrap">
+                                <a href="{{ route('admin.products.show', $p->slug) }}" class="btn btn-sm btn-icon btn-light" title="View Product Details">
                                     <i class="fa fa-eye"></i>
+                                </a>
+                                <a href="{{ route('products.show', $p->slug) }}" target="_blank" class="btn btn-sm btn-icon btn-light" title="Preview on Frontend">
+                                    <i class="fa fa-external-link-alt"></i>
                                 </a>
                                 <a href="{{ route('admin.products.edit', $p->slug) }}" class="btn btn-sm btn-icon btn-info" title="Edit Product">
                                     <i class="fa fa-edit"></i>

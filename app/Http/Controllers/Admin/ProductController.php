@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductPriceTier;
 use App\Models\ProductVariant;
 use App\Models\Unit;
 use App\Models\User;
@@ -101,8 +102,16 @@ class ProductController extends Controller
             'price'             => 'required|numeric|min:0',
             'mrp'               => 'nullable|numeric|min:0',
             'stock'             => 'nullable|numeric|min:0',
+            'min_order_qty'     => 'nullable|numeric|min:1',
+            'max_order_qty'     => 'nullable|numeric|min:1',
+            'pack_qty'          => 'nullable|numeric|min:1',
             'image'             => 'nullable|image|max:5120',
             'image_url'         => 'nullable|url|max:500',
+            'tiers'             => 'nullable|array',
+            'tiers.*.id'        => 'nullable|integer',
+            'tiers.*.min_qty'   => 'nullable|numeric|min:1',
+            'tiers.*.max_qty'   => 'nullable|numeric|min:1',
+            'tiers.*.price'     => 'nullable|numeric|min:0',
         ]);
 
         $admin = auth('admin')->user() ?: User::first();
@@ -125,6 +134,9 @@ class ProductController extends Controller
             'description'        => $validated['description'] ?? null,
             'sale_type'          => $validated['sale_type'],
             'offer_text'         => $validated['offer_text'] ?? null,
+            'min_order_qty'      => $validated['min_order_qty'] ?? null,
+            'max_order_qty'      => $validated['max_order_qty'] ?? null,
+            'pack_qty'           => $validated['pack_qty'] ?? null,
             'is_featured'        => $request->boolean('is_featured'),
             'is_assured'         => $request->boolean('is_assured'),
             'status'             => $validated['status'],
@@ -134,7 +146,7 @@ class ProductController extends Controller
         ]);
 
         // Default variant
-        ProductVariant::create([
+        $variant = ProductVariant::create([
             'product_id' => $product->id,
             'sku'        => 'SKU-' . strtoupper(Str::slug($product->title)) . '-' . $product->id,
             'price'      => $validated['price'],
@@ -143,6 +155,11 @@ class ProductController extends Controller
             'is_default' => true,
             'is_active'  => true,
         ]);
+
+        // Sync wholesale price tiers
+        if (!empty($validated['tiers'])) {
+            $this->syncWholesaleTiers($product, $variant, $validated['tiers']);
+        }
 
         // Product image
         $imagePath = null;
@@ -170,13 +187,30 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        // Admin product show just redirects to edit
-        return redirect()->route('admin.products.edit', $product->slug);
+        $product->load([
+            'category',
+            'brand',
+            'unit',
+            'defaultVariant',
+            'images',
+            'priceTiers' => fn($q) => $q->orderBy('min_qty'),
+            'variants'
+        ]);
+
+        return view('admin.products.show', compact('product'));
     }
 
     public function edit(Product $product)
     {
-        $product->load(['category', 'brand', 'unit', 'defaultVariant', 'images']);
+        $product->load([
+            'category',
+            'brand',
+            'unit',
+            'defaultVariant',
+            'images',
+            'priceTiers' => fn($q) => $q->orderBy('min_qty'),
+        ]);
+
         $categories = Category::orderBy('name')->get();
         $brands = Brand::orderBy('name')->get();
         $units = Unit::orderBy('name')->get();
@@ -203,11 +237,19 @@ class ProductController extends Controller
             'price'             => 'required|numeric|min:0',
             'mrp'               => 'nullable|numeric|min:0',
             'stock'             => 'nullable|numeric|min:0',
+            'min_order_qty'     => 'nullable|numeric|min:1',
+            'max_order_qty'     => 'nullable|numeric|min:1',
+            'pack_qty'          => 'nullable|numeric|min:1',
             'image'             => 'nullable|image|max:5120',
             'image_url'         => 'nullable|url|max:500',
+            'tiers'             => 'nullable|array',
+            'tiers.*.id'        => 'nullable|integer',
+            'tiers.*.min_qty'   => 'nullable|numeric|min:1',
+            'tiers.*.max_qty'   => 'nullable|numeric|min:1',
+            'tiers.*.price'     => 'nullable|numeric|min:0',
         ]);
 
-        $slug = $validated['slug'] ? Str::slug($validated['slug']) : $product->slug;
+        $slug = !empty($validated['slug']) ? Str::slug($validated['slug']) : $product->slug;
 
         $product->update([
             'category_id'        => $validated['category_id'] ?? null,
@@ -220,6 +262,9 @@ class ProductController extends Controller
             'description'        => $validated['description'] ?? null,
             'sale_type'          => $validated['sale_type'],
             'offer_text'         => $validated['offer_text'] ?? null,
+            'min_order_qty'      => $validated['min_order_qty'] ?? null,
+            'max_order_qty'      => $validated['max_order_qty'] ?? null,
+            'pack_qty'           => $validated['pack_qty'] ?? null,
             'is_featured'        => $request->boolean('is_featured'),
             'is_assured'         => $request->boolean('is_assured'),
             'status'             => $validated['status'],
@@ -235,6 +280,9 @@ class ProductController extends Controller
         $variant->is_default = true;
         $variant->is_active = true;
         $variant->save();
+
+        // Sync wholesale price tiers
+        $this->syncWholesaleTiers($product, $variant, $request->input('tiers', []));
 
         // Image update if new one provided
         if ($request->hasFile('image')) {
@@ -273,6 +321,70 @@ class ProductController extends Controller
         }
 
         return redirect()->route('admin.products.index')->with('success', 'Product updated successfully.');
+    }
+
+    protected function syncWholesaleTiers(Product $product, ?ProductVariant $variant, array $tiersData): void
+    {
+        $variantId = $variant?->id ?: $product->defaultVariant?->id;
+
+        // 1. Gather all submitted existing tier IDs
+        $submittedIds = collect($tiersData)
+            ->pluck('id')
+            ->filter(fn($id) => !empty($id))
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        // 2. Safely delete removed wholesale tiers before updating/inserting
+        // This avoids unique key collisions on (product_id, variant_id, price_type, min_qty)
+        $deleteQuery = ProductPriceTier::where('product_id', $product->id)
+            ->where('price_type', 'wholesale');
+        if (!empty($submittedIds)) {
+            $deleteQuery->whereNotIn('id', $submittedIds);
+        }
+        $deleteQuery->delete();
+
+        // 3. Now update existing or create new tiers
+        foreach ($tiersData as $row) {
+            $minQty = isset($row['min_qty']) && $row['min_qty'] !== '' ? (float) $row['min_qty'] : null;
+            $price  = isset($row['price']) && $row['price'] !== '' ? (float) $row['price'] : null;
+            $maxQty = isset($row['max_qty']) && $row['max_qty'] !== '' ? (float) $row['max_qty'] : null;
+
+            // Skip incomplete or empty rows
+            if ($minQty === null || $price === null) {
+                continue;
+            }
+
+            // Existing tier
+            if (!empty($row['id'])) {
+                $tier = ProductPriceTier::where('id', $row['id'])
+                    ->where('product_id', $product->id)
+                    ->first();
+                if ($tier) {
+                    $tier->update([
+                        'variant_id' => $variantId,
+                        'price_type' => 'wholesale',
+                        'min_qty'    => $minQty,
+                        'max_qty'    => $maxQty,
+                        'price'      => $price,
+                    ]);
+                    continue;
+                }
+            }
+
+            // New tier (or update if duplicate min_qty submitted)
+            ProductPriceTier::updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'variant_id' => $variantId,
+                    'price_type' => 'wholesale',
+                    'min_qty'    => $minQty,
+                ],
+                [
+                    'max_qty'    => $maxQty,
+                    'price'      => $price,
+                ]
+            );
+        }
     }
 
     public function destroy(Product $product)

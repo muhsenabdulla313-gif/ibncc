@@ -151,65 +151,44 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     });
 });
-Route::middleware('role:member')->group(function () {
+Route::middleware(['auth', 'role:member,admin'])->group(function () {
 
     Route::prefix('seller')->name('seller.')->group(function () {
 
- Route::get('/', [SellerController::class, 'index'])->name('index');
+        Route::get('/', [SellerController::class, 'index'])->name('index');
 
-    // catalog helpers (category tree, attributes of a category)
-    Route::get('categories/children', [SellerCatalogController::class, 'children'])->name('categories.children');
-    Route::get('categories/{category}/attributes', [SellerCatalogController::class, 'attributes'])->name('categories.attributes');
+        // store profile & storefront
+        Route::get('store', [SellerController::class, 'storeView'])->name('store');
+        Route::match(['post', 'put'], 'store', [SellerController::class, 'updateStore'])->name('store.update');
 
-    // products
-    Route::get('products', [SellerProductController::class, 'index'])->name('products.index');
-    Route::post('products', [SellerProductController::class, 'store'])->name('products.store');
-    Route::get('products/{uuid}', [SellerProductController::class, 'show'])->name('products.show');
-    Route::put('products/{uuid}', [SellerProductController::class, 'update'])->name('products.update');   // sent as POST + _method=PUT (multipart)
-    Route::delete('products/{uuid}', [SellerProductController::class, 'destroy'])->name('products.destroy');
-    Route::post('products/{uuid}/status', [SellerProductController::class, 'status'])->name('products.status');
-    Route::put('products/{uuid}/details', [SellerProductController::class, 'details'])->name('products.details');
-    Route::put('products/{uuid}/variants', [SellerProductController::class, 'variants'])->name('products.variants');
-    Route::post('products/{uuid}/variants/{variant}/photos', [SellerProductController::class, 'variantPhotos'])->whereNumber('variant')->name('products.variant-photos');
-    Route::delete('products/{uuid}/photos/{image}', [SellerProductController::class, 'deletePhoto'])->whereNumber('image')->name('products.photos.delete');
-    Route::put('products/{uuid}/variant-images', [SellerProductController::class, 'variantImages'])->name('products.variant-images');
-    Route::put('products/{uuid}/pricing', [SellerProductController::class, 'pricing'])->name('products.pricing');
-    Route::put('products/{uuid}/bulk-rule', [SellerProductController::class, 'bulkRule'])->name('products.bulk');
-    Route::delete('products/{uuid}/bulk-rule', [SellerProductController::class, 'disableBulk'])->name('products.bulk.disable');
-    Route::put('products/{uuid}/tiers', [SellerProductController::class, 'tiers'])->name('products.tiers');
-    Route::put('products/{uuid}/stock', [SellerProductController::class, 'stock'])->name('products.stock');
+        // catalog helpers (category tree, attributes of a category)
+        Route::get('categories/children', [SellerCatalogController::class, 'children'])->name('categories.children');
+        Route::get('categories/{category}/attributes', [SellerCatalogController::class, 'attributes'])->name('categories.attributes');
 
-    // orders (order_items belonging to this seller)
-    Route::get('orders/{item}', [SellerOrderController::class, 'show'])->name('orders.show');
-    Route::put('orders/{item}', [SellerOrderController::class, 'update'])->name('orders.update');
+        // products
+        Route::get('products', [SellerProductController::class, 'index'])->name('products.index');
+        Route::post('products', [SellerProductController::class, 'store'])->name('products.store');
+        Route::get('products/{uuid}', [SellerProductController::class, 'show'])->name('products.show');
+        Route::put('products/{uuid}', [SellerProductController::class, 'update'])->name('products.update');   // sent as POST + _method=PUT (multipart)
+        Route::delete('products/{uuid}', [SellerProductController::class, 'destroy'])->name('products.destroy');
+        Route::post('products/{uuid}/status', [SellerProductController::class, 'status'])->name('products.status');
+        Route::put('products/{uuid}/details', [SellerProductController::class, 'details'])->name('products.details');
+        Route::put('products/{uuid}/variants', [SellerProductController::class, 'variants'])->name('products.variants');
+        Route::post('products/{uuid}/variants/{variant}/photos', [SellerProductController::class, 'variantPhotos'])->whereNumber('variant')->name('products.variant-photos');
+        Route::delete('products/{uuid}/photos/{image}', [SellerProductController::class, 'deletePhoto'])->whereNumber('image')->name('products.photos.delete');
+        Route::put('products/{uuid}/variant-images', [SellerProductController::class, 'variantImages'])->name('products.variant-images');
+        Route::put('products/{uuid}/pricing', [SellerProductController::class, 'pricing'])->name('products.pricing');
+        Route::put('products/{uuid}/bulk-rule', [SellerProductController::class, 'bulkRule'])->name('products.bulk');
+        Route::delete('products/{uuid}/bulk-rule', [SellerProductController::class, 'disableBulk'])->name('products.bulk.disable');
+        Route::put('products/{uuid}/tiers', [SellerProductController::class, 'tiers'])->name('products.tiers');
+        Route::put('products/{uuid}/stock', [SellerProductController::class, 'stock'])->name('products.stock');
 
-
-        // Route::get('/', [SellerController::class, 'index'])->name('index');
-
-        //     Route::get('categories/children', [SellerCatalogController::class, 'children'])->name('categories.children');
-        //     Route::get('categories/{category}/attributes', [SellerCatalogController::class, 'attributes'])->name('categories.attributes');
-
-        //     // products
-        //     Route::get('products', [SellerProductController::class, 'index'])->name('products.index');
-        //     Route::post('products', [SellerProductController::class, 'store'])->name('products.store');
-        //     Route::get('products/{uuid}', [SellerProductController::class, 'show'])->name('products.show');
-        //     Route::put('products/{uuid}', [SellerProductController::class, 'update'])->name('products.update');   // sent as POST + _method=PUT (multipart)
-        //     Route::delete('products/{uuid}', [SellerProductController::class, 'destroy'])->name('products.destroy');
-        //     Route::post('products/{uuid}/status', [SellerProductController::class, 'status'])->name('products.status');
-        //     Route::put('products/{uuid}/details', [SellerProductController::class, 'details'])->name('products.details');
-        //     Route::put('products/{uuid}/variants', [SellerProductController::class, 'variants'])->name('products.variants');
-        //     Route::put('products/{uuid}/pricing', [SellerProductController::class, 'pricing'])->name('products.pricing');
-        //     Route::put('products/{uuid}/bulk-rule', [SellerProductController::class, 'bulkRule'])->name('products.bulk');
-        //     Route::delete('products/{uuid}/bulk-rule', [SellerProductController::class, 'disableBulk'])->name('products.bulk.disable');
-        //     Route::put('products/{uuid}/tiers', [SellerProductController::class, 'tiers'])->name('products.tiers');
-        //     Route::put('products/{uuid}/stock', [SellerProductController::class, 'stock'])->name('products.stock');
-
-        //     Route::get('orders/{item}', [SellerOrderController::class, 'show'])->name('orders.show');
-        //     Route::put('orders/{item}', [SellerOrderController::class, 'update'])->name('orders.update');
+        // orders (order_items belonging to this seller)
+        Route::get('orders/{item}', [SellerOrderController::class, 'show'])->name('orders.show');
+        Route::put('orders/{item}', [SellerOrderController::class, 'update'])->name('orders.update');
     });
 
-
-
+    Route::get('/your-store', [SellerController::class, 'storeView'])->name('your-store');
 });
 Route::middleware('role:member,guest')->group(function () {
 });
