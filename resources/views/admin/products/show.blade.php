@@ -132,6 +132,94 @@
                 </div>
             </div>
 
+            {{-- Product Variants & Variant-Specific Images Card --}}
+            <div class="card card-round mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title mb-0"><i class="fas fa-cubes me-2 text-primary"></i>Product Variants &amp; Variant Images</h5>
+                        <small class="text-muted">Variants, attributes, SKU-level pricing, inventory, and variant-specific images.</small>
+                    </div>
+                    <span class="badge badge-primary rounded-pill">{{ $product->variants->count() }} {{ Str::plural('Variant', $product->variants->count()) }}</span>
+                </div>
+                <div class="card-body p-0">
+                    @if($product->variants->count() > 0)
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3" style="width: 10%;">Image</th>
+                                        <th style="width: 25%;">Variant / Attributes</th>
+                                        <th style="width: 20%;">SKU</th>
+                                        <th style="width: 15%;">Price</th>
+                                        <th style="width: 15%;">Stock</th>
+                                        <th class="pe-3 text-end" style="width: 15%;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($product->variants as $v)
+                                        <tr>
+                                            <td class="ps-3">
+                                                <img src="{{ $v->image_url }}" alt="{{ $v->sku }}" style="width: 52px; height: 52px; object-fit: cover; border-radius: 6px;" class="border p-1 bg-white">
+                                            </td>
+                                            <td>
+                                                @if($v->attributeValues->isNotEmpty())
+                                                    <div class="d-flex flex-wrap gap-1 mb-1">
+                                                        @foreach($v->attributeValues as $av)
+                                                            <span class="badge badge-light border text-dark">
+                                                                <strong>{{ $av->attribute?->name }}:</strong> {{ $av->option?->label ?? $av->option?->value }}
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                @elseif(!empty($v->options))
+                                                    <div class="d-flex flex-wrap gap-1 mb-1">
+                                                        @foreach($v->options as $optKey => $optVal)
+                                                            <span class="badge badge-light border text-dark">
+                                                                <strong>{{ ucfirst($optKey) }}:</strong> {{ $optVal }}
+                                                            </span>
+                                                        @endforeach
+                                                    </div>
+                                                @else
+                                                    <span class="text-muted fst-italic">Standard / Base Variant</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <code class="text-dark fw-semibold">{{ $v->sku ?: '—' }}</code>
+                                            </td>
+                                            <td>
+                                                <strong class="text-primary">₹{{ number_format($v->price, 2) }}</strong>
+                                                @if($v->mrp && $v->mrp > $v->price)
+                                                    <small class="text-muted text-decoration-line-through d-block">₹{{ number_format($v->mrp, 2) }}</small>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <span class="badge {{ $v->stock > 0 ? 'badge-success' : 'badge-danger' }}">
+                                                    {{ number_format($v->stock) }} {{ $product->unit?->name ?? 'units' }}
+                                                </span>
+                                            </td>
+                                            <td class="pe-3 text-end">
+                                                @if($v->is_default)
+                                                    <span class="badge badge-primary me-1"><i class="fas fa-check-circle me-1"></i>Default</span>
+                                                @endif
+                                                @if($v->is_active)
+                                                    <span class="badge badge-success">Active</span>
+                                                @else
+                                                    <span class="badge badge-secondary">Inactive</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-cube fa-2x mb-2 opacity-50"></i>
+                            <p class="mb-0">No variants recorded for this product.</p>
+                        </div>
+                    @endif
+                </div>
+            </div>
+
             {{-- Wholesale / Trading Specifications Card --}}
             <div class="card card-round mb-3 border-warning">
                 <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
@@ -299,7 +387,7 @@
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
                             <span class="text-muted">Category</span>
-                            <strong>{{ $product->category?->name ?? 'Uncategorized' }}</strong>
+                            <strong>{{ $product->category?->full_path ?? 'Uncategorized' }}</strong>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
                             <span class="text-muted">Brand</span>
@@ -319,6 +407,31 @@
                                 <i class="fa fa-star"></i> {{ number_format($product->rating_avg ?? 0, 1) }}
                                 <span class="text-muted">({{ $product->rating_count ?? 0 }})</span>
                             </span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            {{-- Seller / Vendor Card --}}
+            <div class="card card-round mb-3">
+                <div class="card-header"><h5 class="card-title mb-0">Seller Information</h5></div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                            <span class="text-muted">Vendor / Owner</span>
+                            <strong>{{ $product->seller?->name ?? 'Admin / In-House' }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                            <span class="text-muted">Email</span>
+                            <span class="text-truncate" style="max-width: 180px;">{{ $product->seller?->email ?? 'admin@ibncc.com' }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                            <span class="text-muted">Phone</span>
+                            <span>{{ $product->seller?->phone ?? '—' }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                            <span class="text-muted">Role</span>
+                            <span class="badge bg-secondary">{{ ucfirst($product->seller?->role?->name ?? 'Admin') }}</span>
                         </li>
                     </ul>
                 </div>

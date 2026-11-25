@@ -26,6 +26,15 @@ class Category extends Model
         return $this->belongsTo(Category::class, 'parent_id');
     }
 
+    public function getFullPathAttribute(): string
+    {
+        $parts = [];
+        for ($n = $this; $n; $n = $n->parent) {
+            array_unshift($parts, $n->name);
+        }
+        return implode(' > ', $parts);
+    }
+
     public function children()
     {
         return $this->hasMany(Category::class, 'parent_id')

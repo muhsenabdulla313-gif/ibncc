@@ -77,7 +77,7 @@
                                     <option value="">Select Category</option>
                                     @foreach($categories as $cat)
                                         <option value="{{ $cat->id }}" {{ old('category_id', $product->category_id) == $cat->id ? 'selected' : '' }}>
-                                            {{ $cat->name }}
+                                            {{ $cat->full_path }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -140,8 +140,88 @@
                     </div>
                 </div>
 
+                @if($product->variants->count() > 1 || $product->variants->first()?->attributeValues?->isNotEmpty() || !empty($product->variants->first()?->options))
+                    {{-- Product Variants & Variant-Specific Images Card --}}
+                    <div class="card card-round mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0"><i class="fas fa-cubes me-2 text-primary"></i>Product Variants &amp; Variant Images</h5>
+                                <small class="text-muted">Manage SKU, individual variant prices, stock, and upload/replace variant-specific images.</small>
+                            </div>
+                            <span class="badge badge-primary rounded-pill">{{ $product->variants->count() }} Variants</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 25%;">Variant Image</th>
+                                            <th style="width: 20%;">Attributes</th>
+                                            <th style="width: 17%;">SKU</th>
+                                            <th style="width: 13%;">Price (₹)</th>
+                                            <th style="width: 13%;">MRP (₹)</th>
+                                            <th style="width: 12%;">Stock</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($product->variants as $v)
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <img src="{{ $v->image_url }}" alt="" style="width: 46px; height: 46px; object-fit: cover; border-radius: 6px;" class="border p-1 bg-white flex-shrink-0">
+                                                        <div class="flex-grow-1">
+                                                            <input type="file" name="variant_images[{{ $v->id }}]" class="form-control form-control-sm" accept="image/*">
+                                                            <small class="text-muted" style="font-size: 0.72rem;">Replace this image</small>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    @if($v->attributeValues->isNotEmpty())
+                                                        <div class="d-flex flex-wrap gap-1">
+                                                            @foreach($v->attributeValues as $av)
+                                                                <span class="badge badge-light border text-dark">
+                                                                    {{ $av->attribute?->name }}: {{ $av->option?->label ?? $av->option?->value }}
+                                                                </span>
+                                                            @endforeach
+                                                        </div>
+                                                    @elseif(!empty($v->options))
+                                                        <div class="d-flex flex-wrap gap-1">
+                                                            @foreach($v->options as $optKey => $optVal)
+                                                                <span class="badge badge-light border text-dark">
+                                                                    {{ ucfirst($optKey) }}: {{ $optVal }}
+                                                                </span>
+                                                            @endforeach
+                                                        </div>
+                                                    @else
+                                                        <span class="text-muted small">Standard Variant</span>
+                                                    @endif
+                                                    @if($v->is_default)
+                                                        <span class="badge badge-primary mt-1 d-inline-block" style="font-size: 0.7rem;">Default</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <input type="text" name="variants[{{ $v->id }}][sku]" class="form-control form-control-sm" value="{{ old('variants.'.$v->id.'.sku', $v->sku) }}" placeholder="SKU">
+                                                </td>
+                                                <td>
+                                                    <input type="number" step="0.01" min="0" name="variants[{{ $v->id }}][price]" class="form-control form-control-sm" value="{{ old('variants.'.$v->id.'.price', $v->price) }}" placeholder="Price">
+                                                </td>
+                                                <td>
+                                                    <input type="number" step="0.01" min="0" name="variants[{{ $v->id }}][mrp]" class="form-control form-control-sm" value="{{ old('variants.'.$v->id.'.mrp', $v->mrp) }}" placeholder="MRP">
+                                                </td>
+                                                <td>
+                                                    <input type="number" step="1" min="0" name="variants[{{ $v->id }}][stock]" class="form-control form-control-sm" value="{{ old('variants.'.$v->id.'.stock', (int) $v->stock) }}" placeholder="Qty">
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- Wholesale / Trading Specifications Card --}}
-                <div class="card card-round mb-3 border-warning">
+                <div class="card card-round mb-3" id="wholesaleCard">
                     <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
                         <div>
                             <h5 class="card-title mb-0 text-warning-emphasis"><i class="fas fa-boxes me-2"></i>Wholesale &amp; Bulk Trading Specifications</h5>
@@ -149,6 +229,9 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <div id="retailNotice" class="alert alert-info py-2 px-3 small d-none mb-3">
+                            <i class="fa fa-info-circle me-1"></i> <strong>Retail Mode:</strong> Wholesale MOQ, Max Qty, and Volume Tiers are optional for retail-only products. They apply whenever Sale Type is Wholesale or Both.
+                        </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label fw-bold">Minimum Order Quantity (MOQ)</label>
@@ -179,7 +262,7 @@
                 </div>
 
                 {{-- Wholesale Volume Price Tiers Card --}}
-                <div class="card card-round mb-3 border-primary">
+                <div class="card card-round mb-3" id="tiersCard">
                     <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
                         <div>
                             <h5 class="card-title mb-0 text-primary"><i class="fas fa-layer-group me-2"></i>Wholesale Volume Price Tiers</h5>
@@ -289,6 +372,23 @@
 
             {{-- Right column: Organization, Media & Status --}}
             <div class="col-md-4">
+                {{-- Seller Assignment --}}
+                <div class="card card-round mb-3">
+                    <div class="card-header"><h5 class="card-title mb-0">Seller / Vendor Assignment</h5></div>
+                    <div class="card-body">
+                        <label class="form-label fw-bold">Assigned Seller</label>
+                        <select name="user_id" class="form-select">
+                            <option value="">Admin / In-House Store</option>
+                            @foreach($sellers as $s)
+                                <option value="{{ $s->id }}" {{ old('user_id', $product->user_id) == $s->id ? 'selected' : '' }}>
+                                    {{ $s->name }} ({{ $s->email }}) [{{ ucfirst($s->role?->name ?? 'member') }}]
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted d-block mt-1">Assign product ownership to a seller or manage as in-house.</small>
+                    </div>
+                </div>
+
                 {{-- Type & Status --}}
                 <div class="card card-round mb-3">
                     <div class="card-header"><h5 class="card-title mb-0">Trading Configuration</h5></div>
@@ -429,6 +529,25 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
+
+    function updateSaleTypeUI() {
+        const saleType = document.querySelector('input[name="sale_type"]:checked')?.value || 'retail';
+        const wholesaleCard = document.getElementById('wholesaleCard');
+        const tiersCard = document.getElementById('tiersCard');
+        const notice = document.getElementById('retailNotice');
+
+        if (saleType === 'retail') {
+            if (notice) notice.classList.remove('d-none');
+            if (wholesaleCard) wholesaleCard.classList.remove('border', 'border-warning');
+            if (tiersCard) tiersCard.classList.remove('border', 'border-primary');
+        } else {
+            if (notice) notice.classList.add('d-none');
+            if (wholesaleCard) wholesaleCard.classList.add('border', 'border-warning');
+            if (tiersCard) tiersCard.classList.add('border', 'border-primary');
+        }
+    }
+    document.querySelectorAll('input[name="sale_type"]').forEach(r => r.addEventListener('change', updateSaleTypeUI));
+    updateSaleTypeUI();
 });
 </script>
 @endpush

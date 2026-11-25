@@ -19,7 +19,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with(['category', 'brand', 'unit', 'defaultVariant', 'images'])->latest();
+        $query = Product::with(['category', 'brand', 'unit', 'defaultVariant', 'images', 'seller'])->latest();
 
         // Filter by sale_type
         if ($request->filled('type') && $request->type !== 'all') {
@@ -69,18 +69,19 @@ class ProductController extends Controller
             'pending' => Product::where('status', 'pending')->count(),
         ];
 
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::with('parent')->orderBy('name')->get();
 
         return view('admin.products.index', compact('products', 'counts', 'categories'));
     }
 
     public function create()
     {
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::with('parent')->orderBy('name')->get();
         $brands = Brand::orderBy('name')->get();
         $units = Unit::orderBy('name')->get();
+        $sellers = User::whereHas('role', fn ($q) => $q->whereIn('name', ['member', 'admin']))->orderBy('name')->get();
 
-        return view('admin.products.create', compact('categories', 'brands', 'units'));
+        return view('admin.products.create', compact('categories', 'brands', 'units', 'sellers'));
     }
 
     public function store(Request $request)
@@ -88,6 +89,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'title'             => 'required|string|max:300',
             'slug'              => 'nullable|string|max:300|unique:products,slug',
+            'user_id'           => 'nullable|exists:users,id',
             'category_id'       => 'nullable|exists:categories,id',
             'brand_id'          => 'nullable|exists:brands,id',
             'unit_id'           => 'required|exists:units,id',
@@ -112,12 +114,19 @@ class ProductController extends Controller
             'tiers.*.min_qty'   => 'nullable|numeric|min:1',
             'tiers.*.max_qty'   => 'nullable|numeric|min:1',
             'tiers.*.price'     => 'nullable|numeric|min:0',
+            'variants'          => 'nullable|array',
+            'variants.*.sku'    => 'nullable|string|max:100',
+            'variants.*.price'  => 'nullable|numeric|min:0',
+            'variants.*.mrp'    => 'nullable|numeric|min:0',
+            'variants.*.stock'  => 'nullable|numeric|min:0',
+            'variant_images'    => 'nullable|array',
+            'variant_images.*'  => 'nullable|image|max:5120',
         ]);
 
         $admin = auth('admin')->user() ?: User::first();
-        $userId = $admin ? $admin->id : 1;
+        $userId = !empty($validated['user_id']) ? (int) $validated['user_id'] : ($admin ? $admin->id : 1);
 
-        $slug = $validated['slug'] ? Str::slug($validated['slug']) : Str::slug($validated['title']);
+        $slug = !empty($validated['slug']) ? Str::slug($validated['slug']) : Str::slug($validated['title']);
         if (Product::where('slug', $slug)->exists()) {
             $slug .= '-' . Str::lower(Str::random(5));
         }
@@ -134,9 +143,9 @@ class ProductController extends Controller
             'description'        => $validated['description'] ?? null,
             'sale_type'          => $validated['sale_type'],
             'offer_text'         => $validated['offer_text'] ?? null,
-            'min_order_qty'      => $validated['min_order_qty'] ?? null,
+            'min_order_qty'      => !empty($validated['min_order_qty']) ? $validated['min_order_qty'] : 1,
             'max_order_qty'      => $validated['max_order_qty'] ?? null,
-            'pack_qty'           => $validated['pack_qty'] ?? null,
+            'pack_qty'           => !empty($validated['pack_qty']) ? $validated['pack_qty'] : 1,
             'is_featured'        => $request->boolean('is_featured'),
             'is_assured'         => $request->boolean('is_assured'),
             'status'             => $validated['status'],
@@ -150,7 +159,7 @@ class ProductController extends Controller
             'product_id' => $product->id,
             'sku'        => 'SKU-' . strtoupper(Str::slug($product->title)) . '-' . $product->id,
             'price'      => $validated['price'],
-            'mrp'        => $validated['mrp'] ?: $validated['price'],
+            'mrp'        => !empty($validated['mrp']) ? $validated['mrp'] : $validated['price'],
             'stock'      => $validated['stock'] ?? 100,
             'is_default' => true,
             'is_active'  => true,
@@ -188,13 +197,15 @@ class ProductController extends Controller
     public function show(Product $product)
     {
         $product->load([
-            'category',
+            'seller.role',
+            'category.parent',
             'brand',
             'unit',
             'defaultVariant',
-            'images',
+            'images.option',
             'priceTiers' => fn($q) => $q->orderBy('min_qty'),
-            'variants'
+            'variants.attributeValues.attribute',
+            'variants.attributeValues.option',
         ]);
 
         return view('admin.products.show', compact('product'));
@@ -203,24 +214,29 @@ class ProductController extends Controller
     public function edit(Product $product)
     {
         $product->load([
-            'category',
+            'seller.role',
+            'category.parent',
             'brand',
             'unit',
             'defaultVariant',
-            'images',
+            'images.option',
             'priceTiers' => fn($q) => $q->orderBy('min_qty'),
+            'variants.attributeValues.attribute',
+            'variants.attributeValues.option',
         ]);
 
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::with('parent')->orderBy('name')->get();
         $brands = Brand::orderBy('name')->get();
         $units = Unit::orderBy('name')->get();
+        $sellers = User::whereHas('role', fn($q) => $q->whereIn('name', ['member', 'admin']))->orderBy('name')->get();
 
-        return view('admin.products.edit', compact('product', 'categories', 'brands', 'units'));
+        return view('admin.products.edit', compact('product', 'categories', 'brands', 'units', 'sellers'));
     }
 
     public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
+            'user_id'           => 'nullable|exists:users,id',
             'title'             => 'required|string|max:300',
             'slug'              => 'nullable|string|max:300|unique:products,slug,' . $product->id,
             'category_id'       => 'nullable|exists:categories,id',
@@ -247,11 +263,18 @@ class ProductController extends Controller
             'tiers.*.min_qty'   => 'nullable|numeric|min:1',
             'tiers.*.max_qty'   => 'nullable|numeric|min:1',
             'tiers.*.price'     => 'nullable|numeric|min:0',
+            'variants'          => 'nullable|array',
+            'variants.*.sku'    => 'nullable|string|max:100',
+            'variants.*.price'  => 'nullable|numeric|min:0',
+            'variants.*.mrp'    => 'nullable|numeric|min:0',
+            'variants.*.stock'  => 'nullable|numeric|min:0',
+            'variant_images'    => 'nullable|array',
+            'variant_images.*'  => 'nullable|image|max:5120',
         ]);
 
         $slug = !empty($validated['slug']) ? Str::slug($validated['slug']) : $product->slug;
 
-        $product->update([
+        $updateData = [
             'category_id'        => $validated['category_id'] ?? null,
             'brand_id'           => $validated['brand_id'] ?? null,
             'unit_id'            => $validated['unit_id'],
@@ -262,20 +285,24 @@ class ProductController extends Controller
             'description'        => $validated['description'] ?? null,
             'sale_type'          => $validated['sale_type'],
             'offer_text'         => $validated['offer_text'] ?? null,
-            'min_order_qty'      => $validated['min_order_qty'] ?? null,
+            'min_order_qty'      => !empty($validated['min_order_qty']) ? $validated['min_order_qty'] : 1,
             'max_order_qty'      => $validated['max_order_qty'] ?? null,
-            'pack_qty'           => $validated['pack_qty'] ?? null,
+            'pack_qty'           => !empty($validated['pack_qty']) ? $validated['pack_qty'] : 1,
             'is_featured'        => $request->boolean('is_featured'),
             'is_assured'         => $request->boolean('is_assured'),
             'status'             => $validated['status'],
             'published_at'       => $validated['status'] === 'active' ? ($product->published_at ?: now()) : null,
-        ]);
+        ];
+        if (!empty($validated['user_id'])) {
+            $updateData['user_id'] = (int) $validated['user_id'];
+        }
+        $product->update($updateData);
 
         // Update default variant
         $variant = $product->defaultVariant ?: ProductVariant::firstOrNew(['product_id' => $product->id, 'is_default' => true]);
         $variant->sku = $variant->sku ?: 'SKU-' . strtoupper(Str::slug($product->title)) . '-' . $product->id;
         $variant->price = $validated['price'];
-        $variant->mrp = $validated['mrp'] ?: $validated['price'];
+        $variant->mrp = !empty($validated['mrp']) ? $validated['mrp'] : $validated['price'];
         $variant->stock = $validated['stock'] ?? 100;
         $variant->is_default = true;
         $variant->is_active = true;
@@ -317,6 +344,84 @@ class ProductController extends Controller
                     'path'       => $request->image_url,
                     'sort_order' => 1,
                 ]);
+            }
+        }
+
+        // Handle variant updates (price, mrp, stock, sku)
+        if ($request->has('variants') && is_array($request->input('variants'))) {
+            foreach ($request->input('variants') as $vId => $vData) {
+                $vRecord = ProductVariant::where('id', $vId)->where('product_id', $product->id)->first();
+                if ($vRecord) {
+                    if (isset($vData['sku']) && $vData['sku'] !== '') {
+                        $vRecord->sku = $vData['sku'];
+                    }
+                    if (isset($vData['price']) && $vData['price'] !== '') {
+                        $vRecord->price = $vData['price'];
+                    }
+                    if (isset($vData['mrp']) && $vData['mrp'] !== '') {
+                        $vRecord->mrp = $vData['mrp'];
+                    }
+                    if (isset($vData['stock']) && $vData['stock'] !== '') {
+                        $vRecord->stock = $vData['stock'];
+                    }
+                    $vRecord->save();
+                }
+            }
+        }
+
+        // Handle variant-specific image uploads without affecting other variants
+        if ($request->hasFile('variant_images')) {
+            $dir = public_path('uploads/products');
+            File::ensureDirectoryExists($dir);
+
+            foreach ($request->file('variant_images') as $vId => $file) {
+                if (!$file || !$file->isValid()) {
+                    continue;
+                }
+
+                $var = ProductVariant::with(['attributeValues.attribute'])->where('id', $vId)->where('product_id', $product->id)->first();
+                if (!$var) {
+                    continue;
+                }
+
+                $filename = time() . '_var_' . $vId . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+                $file->move($dir, $filename);
+                $vImgPath = 'uploads/products/' . $filename;
+
+                // Identify color/axis option if exists
+                $colorOptionId = null;
+                foreach ($var->attributeValues as $av) {
+                    if (strtolower($av->attribute?->name ?? '') === 'color') {
+                        $colorOptionId = $av->attribute_option_id;
+                        break;
+                    }
+                }
+                if (!$colorOptionId && $var->attributeValues->isNotEmpty()) {
+                    $colorOptionId = $var->attributeValues->first()->attribute_option_id;
+                }
+
+                // Find existing image specifically for this variant
+                $existingImg = ProductImage::where('product_id', $product->id)
+                    ->where('variant_id', $vId)
+                    ->first();
+
+                if ($existingImg) {
+                    if ($existingImg->path && str_starts_with($existingImg->path, 'uploads/')) {
+                        File::delete(public_path($existingImg->path));
+                    }
+                    $existingImg->update([
+                        'path'                => $vImgPath,
+                        'attribute_option_id' => $colorOptionId ?: $existingImg->attribute_option_id,
+                    ]);
+                } else {
+                    ProductImage::create([
+                        'product_id'          => $product->id,
+                        'variant_id'          => $vId,
+                        'attribute_option_id' => $colorOptionId,
+                        'path'                => $vImgPath,
+                        'sort_order'          => 1,
+                    ]);
+                }
             }
         }
 

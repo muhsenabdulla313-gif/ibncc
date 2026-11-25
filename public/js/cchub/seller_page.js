@@ -127,10 +127,18 @@
   async function loadList() {
     const body = $('#myProductsBody');
     try {
-      const rows = await api('GET', R.products + '?mode=' + st.mode);
-      if (!rows.length) { body.innerHTML = '<tr><td colspan="8" class="seller-empty">No products yet — click “New product” to add your first listing.</td></tr>'; return; }
+      const q = $('#prodSearchInput') ? encodeURIComponent($('#prodSearchInput').value.trim()) : '';
+      const status = $('#prodStatusFilter') ? $('#prodStatusFilter').value : 'all';
+      let url = R.products + '?mode=' + st.mode;
+      if (q) url += '&q=' + q;
+      if (status && status !== 'all') url += '&status=' + status;
+      const rows = await api('GET', url);
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="8" class="seller-empty">No products match your criteria.</td></tr>'; return; }
       body.innerHTML = rows.map((r) => {
-        const acts = [`<button type="button" class="seller-link-btn" data-act="edit">Edit</button>`];
+        const acts = [
+          `<button type="button" class="seller-link-btn" data-act="view">View</button>`,
+          `<button type="button" class="seller-link-btn" data-act="edit">Edit</button>`
+        ];
         if (['draft', 'rejected'].includes(r.status)) acts.push(`<button type="button" class="seller-link-btn" data-act="submit">${C.autoPublish ? 'Publish' : 'Submit'}</button>`);
         if (r.status === 'pending') acts.push(`<button type="button" class="seller-link-btn" data-act="draft">Withdraw</button>`);
         if (r.status === 'active') acts.push(`<button type="button" class="seller-link-btn" data-act="deactivate">Hide</button>`);
@@ -152,6 +160,7 @@
     const b = e.target.closest('[data-act]'); if (!b) return;
     const uuid = b.closest('tr').dataset.uuid, act = b.dataset.act;
     run(b, async () => {
+      if (act === 'view') return openProductView(uuid);
       if (act === 'edit') return openProduct(uuid, 'add-edit');
       if (act === 'delete') {
         if (!confirm('Delete this product? Past orders keep their details.')) return;
@@ -165,6 +174,70 @@
     });
   });
   $('#newProductBtn').addEventListener('click', () => newProduct(true));
+
+  /* ---------- Product view modal ---------- */
+  async function openProductView(uuid) {
+    const modal = $('#productViewModal');
+    const body = $('#productViewModalBody');
+    if (!modal || !body) return;
+    body.innerHTML = '<div style="padding:40px; text-align:center;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">Loading product...</p></div>';
+    modal.hidden = false;
+    try {
+      const p = await api('GET', R.product + '/' + uuid);
+      const ch = { retail: 'Marketplace (Retail)', wholesale: 'Trading (Wholesale)', both: 'Both Channels' }[p.sale_type] || p.sale_type;
+      const mainImg = p.images && p.images.length ? p.images[0].url : '';
+      let tiersHtml = '';
+      if (p.tiers && p.tiers.length) {
+        tiersHtml = `
+          <div style="margin-top:16px;">
+            <h4 style="font-size:14px; font-weight:700; margin-bottom:8px; color:#1e293b;"><i class="fa-solid fa-layer-group"></i> Wholesale Volume Price Tiers</h4>
+            <table class="seller-table" style="font-size:13px;">
+              <thead><tr><th>Min Qty</th><th>Max Qty</th><th>Tier Price</th></tr></thead>
+              <tbody>
+                ${p.tiers.map(t => `<tr><td>${t.min_qty}</td><td>${t.max_qty || 'Above'}</td><td><strong>₹${Number(t.price).toFixed(2)}</strong></td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      }
+      body.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
+          <div>
+            <h2 id="productViewModalTitle" style="font-size:18px; font-weight:700; margin:0 0 4px 0; color:#0f172a;">${esc(p.title)}</h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="seller-pill is-${p.status}">${STATUS[p.status]}</span>
+              <span style="font-size:12px; color:#64748b;">Channel: <strong>${ch}</strong></span>
+              <span style="font-size:12px; color:#64748b;">SKU: <strong>${esc(p.sku || 'N/A')}</strong></span>
+            </div>
+          </div>
+          <button type="button" class="seller-btn seller-btn-secondary" id="modalEditBtn"><i class="fa-solid fa-pen-to-square"></i> Edit Product</button>
+        </div>
+        <div style="display:grid; grid-template-columns: 140px 1fr; gap:16px; margin-bottom:16px;">
+          <div>
+            ${mainImg ? `<img src="${esc(mainImg)}" alt="" style="width:140px; height:140px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;">` : '<div style="width:140px; height:140px; background:#f8fafc; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#94a3b8;"><i class="fa-solid fa-image fa-2x"></i></div>'}
+          </div>
+          <div>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; font-size:13px;">
+              <div><span style="color:#64748b;">Category:</span> <strong style="display:block;">${esc(p.category_name || '—')}</strong></div>
+              <div><span style="color:#64748b;">Brand:</span> <strong style="display:block;">${esc(p.brand_name || '—')}</strong></div>
+              <div><span style="color:#64748b;">Base Price:</span> <strong style="display:block; color:#059669; font-size:15px;">₹${p.price !== null ? Number(p.price).toFixed(2) : '0.00'}</strong></div>
+              <div><span style="color:#64748b;">Total Stock:</span> <strong style="display:block;">${p.stock} ${esc(p.unit_name || 'units')}</strong></div>
+              ${p.min_order_qty ? `<div><span style="color:#64748b;">Wholesale MOQ:</span> <strong style="display:block;">${p.min_order_qty}</strong></div>` : ''}
+              ${p.max_order_qty ? `<div><span style="color:#64748b;">Max Order Qty:</span> <strong style="display:block;">${p.max_order_qty}</strong></div>` : ''}
+            </div>
+            ${p.short_description ? `<p style="font-size:13px; color:#475569; margin-top:12px; background:#f8fafc; padding:8px 12px; border-radius:6px;">${esc(p.short_description)}</p>` : ''}
+          </div>
+        </div>
+        ${tiersHtml}
+        ${p.description ? `<div style="margin-top:14px; font-size:13px; color:#334155; line-height:1.5; border-top:1px solid #f1f5f9; padding-top:12px;"><strong>Description:</strong><p style="white-space:pre-wrap; margin-top:4px;">${esc(p.description)}</p></div>` : ''}
+      `;
+      $('#modalEditBtn')?.addEventListener('click', () => {
+        modal.hidden = true;
+        openProduct(p.uuid, 'add-edit');
+      });
+    } catch (e) {
+      body.innerHTML = `<div style="padding:20px; color:#dc2626;">Failed to load product: ${esc(e.message)}</div>`;
+    }
+  }
 
   /* ---------- load / set current product ---------- */
   async function openProduct(uuid, panel) { const p = await api('GET', R.product + '/' + uuid); await setProduct(p); go(panel || 'add-edit'); }
@@ -463,8 +536,10 @@
   /* ---------- Bulk rule ---------- */
   function fillBulk(p) {
     const wholesale = p.sale_type !== 'retail';
-    const first = p.tiers[0];
+    const first = p.tiers && p.tiers[0];
     $('#moqQty').value = wholesale ? p.min_order_qty : '';
+    const maxQtyEl = $('#bulkMaxQty');
+    if (maxQtyEl) maxQtyEl.value = wholesale && p.max_order_qty ? p.max_order_qty : '';
     $('#bulkPricePerUnit').value = first && first.min_qty === p.min_order_qty ? first.price : '';
     $('#bulkNote').value = p.offer_text || '';
     $('#disableBulk').hidden = p.sale_type !== 'both';
@@ -472,7 +547,13 @@
   $('#formBulk').addEventListener('submit', (e) => {
     e.preventDefault();
     run(e.submitter, async () => {
-      const res = await api('PUT', pUrl('/bulk-rule'), { min_order_qty: numOrNull($('#moqQty').value), bulk_price: numOrNull($('#bulkPricePerUnit').value), offer_text: $('#bulkNote').value });
+      const maxQtyEl = $('#bulkMaxQty');
+      const res = await api('PUT', pUrl('/bulk-rule'), {
+        min_order_qty: numOrNull($('#moqQty').value),
+        max_order_qty: maxQtyEl ? numOrNull(maxQtyEl.value) : null,
+        bulk_price: numOrNull($('#bulkPricePerUnit').value),
+        offer_text: $('#bulkNote').value
+      });
       setProduct(res.product); toast(res.message);
     });
   });
@@ -570,6 +651,31 @@
       $$(`[data-order-status="${o.id}"]`).forEach((b) => { b.textContent = res.order.status[0].toUpperCase() + res.order.status.slice(1); b.className = 'seller-pill is-' + res.order.status; });
     });
   }
+
+  /* ---------- Product view modal close ---------- */
+  const pViewModal = $('#productViewModal');
+  if (pViewModal) {
+    pViewModal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) pViewModal.hidden = true; });
+  }
+
+  /* ---------- Dashboard & Filters ---------- */
+  $('#dashNewProductBtn')?.addEventListener('click', () => { go('add-edit'); newProduct(true); });
+  $('#dashViewAllProducts')?.addEventListener('click', () => go('products'));
+  $('#dashViewAllOrders')?.addEventListener('click', () => go(st.mode === 'trading' ? 'bulk-orders' : 'retail-orders'));
+
+  $('#btnFilterProds')?.addEventListener('click', loadList);
+  $('#prodSearchInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadList(); });
+  $('#prodStatusFilter')?.addEventListener('change', loadList);
+
+  /* ---------- Store settings ---------- */
+  $('#formStoreSettings')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    run(e.submitter, async () => {
+      const fd = new FormData($('#formStoreSettings'));
+      const res = await api('POST', R.store, fd);
+      toast(res.message || 'Store settings updated successfully.');
+    });
+  });
 
   /* ---------- init ---------- */
   loadLevel(0);

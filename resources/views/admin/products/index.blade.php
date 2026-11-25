@@ -60,7 +60,7 @@
                         <option value="">All Categories</option>
                         @foreach($categories as $cat)
                             <option value="{{ $cat->id }}" {{ request('category_id') == $cat->id ? 'selected' : '' }}>
-                                {{ $cat->name }}
+                                {{ $cat->parent ? $cat->parent->name . ' > ' : '' }}{{ $cat->name }}
                             </option>
                         @endforeach
                     </select>
@@ -126,7 +126,7 @@
                                 <a href="{{ route('admin.products.edit', $p->slug) }}" class="fw-bold text-dark text-decoration-none">
                                     {{ $p->title }}
                                 </a>
-                                <small class="text-muted d-block">SKU: {{ $sku }}</small>
+                                <small class="text-muted d-block">SKU: {{ $sku }} &bull; Seller: <span class="fw-semibold text-secondary">{{ $p->seller?->name ?? 'Admin / In-House' }}</span></small>
                                 @if($p->offer_text)
                                     <span class="badge bg-light text-danger border mt-1">{{ $p->offer_text }}</span>
                                 @endif

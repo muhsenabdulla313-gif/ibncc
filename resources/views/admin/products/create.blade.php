@@ -52,7 +52,7 @@
                                     <option value="">Select Category</option>
                                     @foreach($categories as $cat)
                                         <option value="{{ $cat->id }}" {{ old('category_id') == $cat->id ? 'selected' : '' }}>
-                                            {{ $cat->name }}
+                                            {{ $cat->full_path }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -116,7 +116,7 @@
                 </div>
 
                 {{-- Wholesale / Trading Specifications Card --}}
-                <div class="card card-round mb-3 border-warning">
+                <div class="card card-round mb-3" id="wholesaleCard">
                     <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
                         <div>
                             <h5 class="card-title mb-0 text-warning-emphasis"><i class="fas fa-boxes me-2"></i>Wholesale &amp; Bulk Trading Specifications</h5>
@@ -124,6 +124,9 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <div id="retailNotice" class="alert alert-info py-2 px-3 small d-none mb-3">
+                            <i class="fa fa-info-circle me-1"></i> <strong>Retail Mode:</strong> Wholesale MOQ, Max Qty, and Volume Tiers are optional for retail-only products. They apply whenever Sale Type is Wholesale or Both.
+                        </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label fw-bold">Minimum Order Quantity (MOQ)</label>
@@ -154,7 +157,7 @@
                 </div>
 
                 {{-- Wholesale Volume Price Tiers Card --}}
-                <div class="card card-round mb-3 border-primary">
+                <div class="card card-round mb-3" id="tiersCard">
                     <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
                         <div>
                             <h5 class="card-title mb-0 text-primary"><i class="fas fa-layer-group me-2"></i>Wholesale Volume Price Tiers</h5>
@@ -240,6 +243,23 @@
 
             {{-- Right column: Organization, Media & Status --}}
             <div class="col-md-4">
+                {{-- Seller Assignment --}}
+                <div class="card card-round mb-3">
+                    <div class="card-header"><h5 class="card-title mb-0">Seller / Vendor Assignment</h5></div>
+                    <div class="card-body">
+                        <label class="form-label fw-bold">Assigned Seller</label>
+                        <select name="user_id" class="form-select">
+                            <option value="">Admin / In-House Store</option>
+                            @foreach($sellers as $s)
+                                <option value="{{ $s->id }}" {{ old('user_id') == $s->id ? 'selected' : '' }}>
+                                    {{ $s->name }} ({{ $s->email }}) [{{ ucfirst($s->role?->name ?? 'member') }}]
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted d-block mt-1">Assign product ownership to a seller or keep as admin in-house.</small>
+                    </div>
+                </div>
+
                 {{-- Type & Status --}}
                 <div class="card card-round mb-3">
                     <div class="card-header"><h5 class="card-title mb-0">Trading Configuration</h5></div>
@@ -377,6 +397,25 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
+
+    function updateSaleTypeUI() {
+        const saleType = document.querySelector('input[name="sale_type"]:checked')?.value || 'retail';
+        const wholesaleCard = document.getElementById('wholesaleCard');
+        const tiersCard = document.getElementById('tiersCard');
+        const notice = document.getElementById('retailNotice');
+
+        if (saleType === 'retail') {
+            if (notice) notice.classList.remove('d-none');
+            if (wholesaleCard) wholesaleCard.classList.remove('border', 'border-warning');
+            if (tiersCard) tiersCard.classList.remove('border', 'border-primary');
+        } else {
+            if (notice) notice.classList.add('d-none');
+            if (wholesaleCard) wholesaleCard.classList.add('border', 'border-warning');
+            if (tiersCard) tiersCard.classList.add('border', 'border-primary');
+        }
+    }
+    document.querySelectorAll('input[name="sale_type"]').forEach(r => r.addEventListener('change', updateSaleTypeUI));
+    updateSaleTypeUI();
 });
 </script>
 @endpush

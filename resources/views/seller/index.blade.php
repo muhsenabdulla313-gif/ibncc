@@ -97,6 +97,15 @@
       <section class="seller-workspace" id="seller-workspace" aria-label="Seller workspace">
         <aside class="seller-nav" aria-label="Seller sections">
           <div class="seller-nav-group">
+            <p class="seller-nav-title"><i class="fa-solid fa-chart-pie" aria-hidden="true"></i> Overview</p>
+            <div class="seller-nav-list" role="tablist" aria-orientation="vertical">
+              <button type="button" class="seller-nav-item" role="tab" data-panel="dashboard" data-seller-modes="marketplace trading" aria-selected="false">
+                <i class="fa-solid fa-gauge-high" aria-hidden="true"></i> Dashboard
+              </button>
+            </div>
+          </div>
+
+          <div class="seller-nav-group">
             <p class="seller-nav-title"><i class="fa-solid fa-box" aria-hidden="true"></i> Products</p>
             <div class="seller-nav-list" role="tablist" aria-orientation="vertical">
               <button type="button" class="seller-nav-item is-active" role="tab" data-panel="products" data-seller-modes="marketplace trading" aria-selected="true">
@@ -138,6 +147,15 @@
             </div>
           </div>
 
+          <div class="seller-nav-group">
+            <p class="seller-nav-title"><i class="fa-solid fa-store" aria-hidden="true"></i> Store Profile</p>
+            <div class="seller-nav-list" role="tablist" aria-orientation="vertical">
+              <button type="button" class="seller-nav-item" role="tab" data-panel="store-settings" data-seller-modes="marketplace trading" aria-selected="false">
+                <i class="fa-solid fa-sliders" aria-hidden="true"></i> Store Settings
+              </button>
+            </div>
+          </div>
+
           <a href="{{ url('/your-store') }}" class="seller-nav-store"><i class="fa-solid fa-store" aria-hidden="true"></i> Your Store</a>
         </aside>
 
@@ -152,6 +170,103 @@
             <div class="seller-current-missing" id="currentMissing" hidden></div>
           </div>
 
+          <!-- ===== Dashboard ===== -->
+          <article class="seller-panel" id="panel-dashboard" role="tabpanel" data-panel="dashboard" hidden>
+            <div class="seller-panel-head">
+              <div>
+                <h2>Seller Dashboard</h2>
+                <p>Welcome back, {{ $user->name }}. Overview of your store performance, products, and incoming orders.</p>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="seller-btn seller-btn-primary" id="dashNewProductBtn"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Product</button>
+                <a href="{{ url('/your-store') }}" target="_blank" class="seller-btn seller-btn-secondary"><i class="fa-solid fa-store" aria-hidden="true"></i> My Storefront</a>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="seller-dash-grid">
+              <div class="seller-dash-card">
+                <div class="dash-icon"><i class="fa-solid fa-box"></i></div>
+                <div>
+                  <div class="dash-num">{{ $stats['total_products'] }}</div>
+                  <div class="dash-title">Total Products ({{ $stats['active_products'] }} Active)</div>
+                </div>
+              </div>
+              <div class="seller-dash-card">
+                <div class="dash-icon" style="background:#ecfdf5; color:#059669;"><i class="fa-solid fa-warehouse"></i></div>
+                <div>
+                  <div class="dash-num">{{ number_format($stats['total_stock']) }}</div>
+                  <div class="dash-title">Total Units in Stock</div>
+                </div>
+              </div>
+              <div class="seller-dash-card">
+                <div class="dash-icon" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-receipt"></i></div>
+                <div>
+                  <div class="dash-num">{{ $stats['total_orders'] }}</div>
+                  <div class="dash-title">Total Orders Received</div>
+                </div>
+              </div>
+              <div class="seller-dash-card">
+                <div class="dash-icon" style="background:#fef2f2; color:#dc2626;"><i class="fa-solid fa-clock"></i></div>
+                <div>
+                  <div class="dash-num">{{ $stats['pending_orders'] }}</div>
+                  <div class="dash-title">Pending Fulfillment</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Products & Recent Orders in 2 columns -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 24px;">
+              <div class="seller-dash-block">
+                <div class="seller-dash-block-head">
+                  <h3>Recent Products</h3>
+                  <button type="button" class="seller-link-btn" id="dashViewAllProducts">View all</button>
+                </div>
+                <div class="seller-table-wrap">
+                  <table class="seller-table">
+                    <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
+                    <tbody>
+                      @forelse($recentProducts as $rp)
+                        <tr>
+                          <td><strong>{{ $rp->title }}</strong><br><small class="text-muted">{{ $rp->category?->name ?? 'Uncategorized' }}</small></td>
+                          <td>₹{{ number_format($rp->defaultVariant?->price ?? $rp->min_price ?? 0) }}</td>
+                          <td>{{ number_format($rp->defaultVariant?->stock ?? 0) }}</td>
+                          <td><span class="seller-pill is-{{ $rp->status }}">{{ ucfirst($rp->status) }}</span></td>
+                        </tr>
+                      @empty
+                        <tr><td colspan="4" class="seller-empty">No products yet. Click Add Product to start.</td></tr>
+                      @endforelse
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="seller-dash-block">
+                <div class="seller-dash-block-head">
+                  <h3>Recent Orders</h3>
+                  <button type="button" class="seller-link-btn" id="dashViewAllOrders">View all</button>
+                </div>
+                <div class="seller-table-wrap">
+                  <table class="seller-table">
+                    <thead><tr><th>Order</th><th>Buyer</th><th>Total</th><th>Status</th></tr></thead>
+                    <tbody>
+                      @forelse($recentOrders as $ro)
+                        <tr>
+                          <td>#{{ $ro->order?->order_no ?? $ro->id }}<br><small class="text-muted">{{ $ro->created_at?->format('d M') }}</small></td>
+                          <td>{{ $ro->order?->buyer_name ?? 'Customer' }}</td>
+                          <td>₹{{ number_format($ro->line_total ?? $ro->total_amount ?? 0) }}</td>
+                          <td><span class="seller-pill is-{{ $ro->status }}">{{ ucfirst($ro->status) }}</span></td>
+                        </tr>
+                      @empty
+                        <tr><td colspan="4" class="seller-empty">No orders received yet.</td></tr>
+                      @endforelse
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </article>
+
           <!-- ===== My products ===== -->
           <article class="seller-panel is-active" id="panel-products" role="tabpanel" data-panel="products">
             <div class="seller-panel-head">
@@ -161,6 +276,21 @@
               </div>
               <button type="button" class="seller-btn seller-btn-primary" id="newProductBtn"><i class="fa-solid fa-plus" aria-hidden="true"></i> New product</button>
             </div>
+
+            <!-- Product Filter Bar -->
+            <div class="seller-filter-bar" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px;">
+              <input type="search" id="prodSearchInput" placeholder="Search your products by title or SKU..." class="seller-input" style="max-width:320px;">
+              <select id="prodStatusFilter" class="seller-select" style="max-width:180px;">
+                <option value="all">All Statuses</option>
+                <option value="active">Active (Published)</option>
+                <option value="pending">Pending</option>
+                <option value="draft">Draft</option>
+                <option value="inactive">Inactive</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <button type="button" id="btnFilterProds" class="seller-btn seller-btn-secondary"><i class="fa-solid fa-filter"></i> Filter</button>
+            </div>
+
             <div class="seller-table-wrap">
               <table class="seller-table" id="myProductsTable">
                 <thead><tr><th></th><th>Product</th><th>Category</th><th>Channel</th><th id="thPrice">Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
@@ -353,6 +483,10 @@
                   <label for="bulkPricePerUnit">Bulk price per unit (₹)</label>
                   <input id="bulkPricePerUnit" type="number" min="0" step="0.01" placeholder="e.g. 24.52" />
                 </div>
+                <div class="seller-field">
+                  <label for="bulkMaxQty">Maximum order quantity (Max Qty) <span class="hint">optional</span></label>
+                  <input id="bulkMaxQty" type="number" min="1" step="any" placeholder="e.g. 5000 (leave empty for unlimited)" />
+                </div>
                 <div class="seller-field full">
                   <label for="bulkNote">Buyer-facing note</label>
                   <textarea id="bulkNote" maxlength="255" rows="2" placeholder="Wholesale pricing • MOQ 5,000 pieces • Volume discounts apply"></textarea>
@@ -482,6 +616,60 @@
               </table>
             </div>
           </article>
+
+          <!-- ===== Store Settings ===== -->
+          <article class="seller-panel" id="panel-store-settings" role="tabpanel" data-panel="store-settings" hidden>
+            <div class="seller-panel-head">
+              <div>
+                <h2>Store Branding &amp; Profile</h2>
+                <p>Customize your public storefront, contact details, and business description.</p>
+              </div>
+              <a href="{{ url('/your-store') }}" target="_blank" class="seller-btn seller-btn-secondary"><i class="fa-solid fa-arrow-up-right-from-square"></i> Preview Store</a>
+            </div>
+
+            <form class="seller-form" id="formStoreSettings" enctype="multipart/form-data">
+              @csrf
+              <div class="seller-form-grid">
+                <div class="seller-field">
+                  <label for="storeName">Store / Company Name</label>
+                  <input type="text" id="storeName" name="store_name" value="{{ $user->profile?->organization ?: $user->name }}" required>
+                </div>
+                <div class="seller-field">
+                  <label for="storeEmail">Contact Email</label>
+                  <input type="email" id="storeEmail" name="email" value="{{ $user->email }}" required>
+                </div>
+                <div class="seller-field">
+                  <label for="storePhone">Contact Phone Number</label>
+                  <input type="tel" id="storePhone" name="phone" value="{{ $user->phone }}">
+                </div>
+                <div class="seller-field">
+                  <label for="storeWhatsapp">WhatsApp Number</label>
+                  <input type="tel" id="storeWhatsapp" name="whatsapp" value="{{ $user->profile?->whatsapp }}">
+                </div>
+                <div class="seller-field full">
+                  <label for="storeAbout">About Your Store / Business</label>
+                  <textarea id="storeAbout" name="about" rows="3" placeholder="Tell buyers about your manufacturing capacity, products, and specialties...">{{ $user->profile?->about }}</textarea>
+                </div>
+                <div class="seller-field">
+                  <label for="storeLogo">Store Logo</label>
+                  <input type="file" id="storeLogo" name="logo" accept="image/*">
+                  @if($user->profile?->photo)
+                    <div style="margin-top:8px;"><img src="{{ asset($user->profile->photo) }}" alt="Logo" style="height:48px; border-radius:6px; border:1px solid #e2e8f0;"></div>
+                  @endif
+                </div>
+                <div class="seller-field">
+                  <label for="storeBanner">Store Banner / Cover</label>
+                  <input type="file" id="storeBanner" name="banner" accept="image/*">
+                  @if($user->profile?->cover)
+                    <div style="margin-top:8px;"><img src="{{ asset($user->profile->cover) }}" alt="Cover" style="height:48px; border-radius:6px; border:1px solid #e2e8f0;"></div>
+                  @endif
+                </div>
+              </div>
+              <div class="seller-actions" style="margin-top:20px;">
+                <button type="submit" class="seller-btn seller-btn-primary" id="btnSaveStore"><i class="fa-solid fa-floppy-disk"></i> Save Store Profile</button>
+              </div>
+            </form>
+          </article>
         </div>
       </section>
     </main>
@@ -492,6 +680,15 @@
       <div class="seller-modal-card" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
         <button type="button" class="seller-modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
         <div id="orderModalBody"></div>
+      </div>
+    </div>
+
+    <!-- product view modal -->
+    <div class="seller-modal" id="productViewModal" hidden>
+      <div class="seller-modal-backdrop" data-close></div>
+      <div class="seller-modal-card" style="max-width:720px; max-height:85vh; overflow-y:auto;" role="dialog" aria-modal="true" aria-labelledby="productViewModalTitle">
+        <button type="button" class="seller-modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        <div id="productViewModalBody" style="padding:10px 6px;"></div>
       </div>
     </div>
 
@@ -548,7 +745,9 @@
           product: @json(url('seller/products')),        // + /{uuid}[/section]
           children: @json(route('seller.categories.children')),
           categoryAttrs: @json(url('seller/categories')), // + /{id}/attributes
-          orders: @json(url('seller/orders'))             // + /{id}
+          orders: @json(url('seller/orders')),            // + /{id}
+          store: @json(route('seller.store.update')),
+          storeView: @json(route('seller.store'))
         }
       };
     </script>
